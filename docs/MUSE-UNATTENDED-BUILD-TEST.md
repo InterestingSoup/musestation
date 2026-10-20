@@ -1,23 +1,23 @@
 # Isolated unattended build test
 
-**Status, 2026-10-20:** the isolated request → plan → operator approval → Muse
-source → Docker compile/package path passed without follow-up prompts to Muse.
-The resulting package and diagnostics were independently verified. The normal
-relay's records and title ledger are unchanged. Muse's scheduled plan/source run
-IDs, final cursor 3 and worker self-disable report are pending; the isolated
-endpoint remains available for its result handling. No PS5 was contacted and no
-installation was attempted.
+**Status, 2026-10-20: complete.** The isolated request → plan → operator approval
+→ Muse source → Docker compile/package → Muse result-handling cycle passed.
+The package and diagnostics were independently verified; the owner reports Muse
+saved the terminal result, advanced its test cursor to 3 and self-disabled the
+test worker. The isolated relay and builder are stopped with their evidence
+retained. The normal relay's records and title ledger are unchanged. No PS5 was
+contacted and no installation was attempted.
 
-## Active fixture and preflight
+## Retained fixture and preflight
 
 The owner authorized this isolated test on October 19; staging completed after
 midnight locally on October 20. It uses Compose project
 `musestation-unattended-test`, private runtime directory
 `runtime/muse-unattended-test/` and loopback console port `18870`. The provider
-initially used loopback port `18871` with a separate temporary HTTPS tunnel; it
-now binds only the private LAN address `192.168.5.54:18871` for the named
-route below. The test uses distinct credentials; the normal named hostname and
-worker were not changed.
+initially used loopback port `18871` with a separate temporary HTTPS tunnel, then
+bound only the private LAN address `192.168.5.54:18871` for the named route below.
+Both test listeners are now stopped. The test used distinct credentials; the
+normal named hostname and worker were not changed.
 
 Preflight completed at `2026-10-20T07:01:50Z` on Opti3. An independent public
 outbox read from the development Mac also passed at `07:03:29Z`.
@@ -161,13 +161,42 @@ and approval bodies, reviewed revision, accepted receipts, raw source and outbox
 diagnostics, compiler input/logs, build receipt, package report, artifact and
 independent completion checks. No credential is published in this document.
 
-**Remaining closeout:** Muse must report the matching scheduled plan/source/result
-runs, persisted result and diagnostics, cursor 3 and test-worker self-disable.
-The relay outbox is a durable event stream; an operator GET does not acknowledge
-an event or prove Muse checkpointed it. Keep the isolated API running until that
-report arrives, then stop only the test services while retaining their data.
-The normal connector and worker stay unchanged. The temporary Quick Tunnel is
-already removed; the separate named test route can be removed after closeout.
+## Muse completion and test teardown
+
+The owner relayed Muse's completion report after independent artifact verification:
+
+| Muse-side observation | Owner-reported result |
+|---|---|
+| Final scheduled run | `2026-10-20T07:53:05Z` (00:53:05 PDT), received terminal result event 3 for `j3ab720742e1741c9a50d1ed0aa6491c4`. |
+| Checkpoint | Test cursor **3**, terminal state `result`; the result's source digest matches the accepted submission. |
+| Artifact | `done`, `pkg`, `PPSA99003`, **38,054,688 bytes**, SHA-256 `3173de7ffbaccf930c8ae49688dc9a6578eb4efc4081eb20181dd706c2efea4b`, `hardware_verified:false`. These match the independently verified relay evidence. |
+| Diagnostics | Compile logs preserved under `hidden_files/musestation-unattended-test-worker/diagnostics/` in Muse's workspace. |
+| Scheduler | Only `musestation-unattended-test-worker` self-disabled after the terminal event. |
+| Normal worker | Connector, worker and cursor **2** unchanged. |
+
+The scheduler, private checkpoint and self-disable are owner-reported evidence;
+they cannot be inspected from Opti3. Per-run UUIDs and the individual plan/source
+scheduled times were not supplied. The final run time and matching job, source
+and artifact values correlate the report with this isolated attempt. An operator
+outbox GET alone would not establish that Muse saved its checkpoint.
+
+The operator stopped the test Compose project at `2026-10-20T08:25:53.824Z`
+(01:25:53 PDT). Verification at `08:26:10.447Z` established:
+
+- No containers remain for `musestation-unattended-test`; its Compose network was
+  removed. Test ports `18870` and `18871` are closed.
+- Test data, package, source, logs and reports remain on disk; test database and
+  title-ledger snapshots are unchanged from the completed build.
+- The normal database and title ledger match their pre-test baseline. Its public
+  outbox returns HTTP 200, no events after cursor 2, and `next_after:2`.
+- The shared Cloudflare connector and normal route were not changed. The Quick
+  Tunnel was already removed. The named test route remains configured but its
+  origin is stopped; it can be removed independently in Cloudflare.
+
+The owner report and teardown checks are saved privately as
+`reports/muse-completion-report.json` and `reports/teardown.json` alongside the
+completion evidence on Opti3, with copies in the development Mac's evidence
+folder. This closes the single host-only unattended build test.
 
 ## Preserve the running connector
 
@@ -229,10 +258,12 @@ do not silently regenerate source or reuse an immutable failed job.
 
 ## Evidence and boundary
 
-Success requires the scheduled plan and source run identifiers, accepted
-receipts, source digest, final `done` result, package verification report and an
-independent artifact hash. A successful POST alone does not establish a build.
-Record the normal relay comparison and test teardown as well.
+Success requires accepted receipts, source digest, final `done` result, package
+verification report and an independent artifact hash, followed by Muse's result
+checkpoint report. Record scheduled run identifiers and times when available;
+identify any missing scheduler evidence explicitly, as above. A successful POST
+alone does not establish a build. Record the normal relay comparison and test
+teardown as well.
 
 The resulting package is a host-test artifact using a simulated title inventory.
 Do not install it on a PS5. Console installation, rendering, input, voice and GPU

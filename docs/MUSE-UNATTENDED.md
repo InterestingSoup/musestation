@@ -10,9 +10,10 @@ confirmed unchanged plan content, zero jobs and an empty outbox after event 2.
 A subsequent [isolated unattended build](MUSE-UNATTENDED-BUILD-TEST.md#verified-build-result)
 received a plan and source without follow-up prompts, then passed Docker
 compilation, package readback and independent artifact hashing after operator
-approval. Muse's matching run IDs and final checkpoint/self-disable report are
-pending. Actual runtime restart, timeout termination and simultaneous lock
-acquisition remain unverified.
+approval. Muse subsequently reported terminal result handling, test cursor 3 and
+worker self-disable; the isolated services are stopped and the normal relay is
+unchanged. Per-run UUIDs were not supplied. Actual runtime restart, timeout
+termination and simultaneous lock acquisition remain unverified.
 
 The Opti3 relay and compiler worker already run continuously. A relay poller can
 detect work, but it also needs a supported way to invoke Muse with the connector
@@ -113,8 +114,9 @@ application state; they cannot inspect the remote worker's locking implementatio
 
 The subsequent [isolated unattended build test](MUSE-UNATTENDED-BUILD-TEST.md#verified-build-result)
 passed its relay/compiler/package checks with a separate connector state directory
-and provider endpoint. Its Muse-side result checkpoint and shutdown report remain
-pending. Do not switch the live normal worker's hostname to another database.
+and provider endpoint. Muse reported its terminal checkpoint and self-disable;
+the operator then stopped the test services and retained the evidence. Do not
+switch the live normal worker's hostname to another database.
 
 ## Establish the execution mechanism first
 
