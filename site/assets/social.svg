@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs><radialGradient id="glow"><stop stop-color="#46572b"/><stop offset="1" stop-color="#101310"/></radialGradient></defs>
+  <rect width="1200" height="630" fill="#101310"/>
+  <ellipse cx="1000" cy="340" rx="400" ry="360" fill="url(#glow)"/>
+  <g transform="translate(64 50)"><rect width="45" height="45" rx="11" fill="#d1f37a"/><path d="M9 32V14h5l9 11 8-11h5v18h-5V22l-8 10-9-10v10z" fill="#17200f"/></g>
+  <text x="122" y="82" font-family="Arial,sans-serif" font-size="30" fill="#eef2e5" letter-spacing="-1">MuseStation</text>
+  <text x="64" y="173" font-family="monospace" font-size="13" letter-spacing="2" fill="#acb89b">HOMEBREW, WITH AN IMAGINATION.</text>
+  <g font-family="Arial,sans-serif" font-size="84" font-weight="600" letter-spacing="-5"><text x="59" y="285" fill="#f0f2e9">Make something</text><text x="59" y="378" fill="#f0f2e9">worth <tspan fill="#d1f37a">playing.</tspan></text></g>
+  <text x="65" y="447" font-family="Arial,sans-serif" font-size="23" fill="#a7afa2">An experimental creation studio for your PS5.</text>
+  <rect x="64" y="510" width="218" height="40" rx="20" fill="#222c19" stroke="#4d6038"/><text x="84" y="536" font-family="monospace" font-size="12" fill="#d1f37a">EXPERIMENTAL PREVIEW</text>
+  <g fill="#d1f37a"><rect x="922" y="208" width="48" height="48" rx="4"/><rect x="922" y="261" width="48" height="48" rx="4"/><rect x="922" y="314" width="48" height="48" rx="4"/><rect x="975" y="314" width="48" height="48" rx="4"/></g>
+  <g fill="#a1bddd"><rect x="1028" y="261" width="48" height="48" rx="4"/><rect x="1081" y="261" width="48" height="48" rx="4"/><rect x="1028" y="314" width="48" height="48" rx="4"/><rect x="1081" y="314" width="48" height="48" rx="4"/></g>
+  <path d="M64 582H1136" stroke="#30372e"/><text x="1136" y="608" text-anchor="end" font-family="monospace" font-size="11" fill="#88957a">AN INTERESTINGSOUP EXPERIMENT</text>
+</svg>
