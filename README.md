@@ -63,6 +63,7 @@ progress are illustrative. The connection wizard is proposed, not implemented.
 | **Native app + bundled models** | Docker compilation and complete package extraction/hash checks passed. |
 | **Docker relay + compiler worker** | 81 relay tests passed; a fixture request completed the real compile, package and download path. |
 | **Provider connection** | Muse plan exchange and source submission passed. An isolated Docker build produced a package with 82-file readback and an independently verified download. |
+| **Unattended Muse response** | A host-only plan canary received a verified reply without another message to Muse. Scheduler run correlation, overlap protection and restart recovery remain unverified; see the [evidence](docs/MUSE-UNATTENDED.md#observed-plan-only-canary). |
 | **PS5 hardware** | Installation, GPU inference, microphone capture, speech playback and generated-app launch remain unverified. |
 
 The **01.005.000 development candidate** is a hardware-test candidate, not a

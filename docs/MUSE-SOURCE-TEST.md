@@ -71,9 +71,10 @@ The original listener has now been restored, without changing DNS or Cloudflare.
 then follow only the request/job IDs in the operator's handoff. Sequence numbers
 are scoped to a database; they are not globally unique. The normal cursor must
 not be overwritten with a test cursor.
-For the completed run, the normal cursor is **1** and the test result cursor is
-**3**. Resume the normal connector at 1; using the test cursor could skip future
-normal events.
+At restoration after this test, the normal cursor was **1** and the test result
+cursor was **3**. Resume the connector from its own persisted normal checkpoint;
+do not import the test cursor or reset a normal checkpoint that has advanced.
+The [unattended processing guide](MUSE-UNATTENDED.md) records subsequent canaries.
 
 ## Instructions for another authorized test
 

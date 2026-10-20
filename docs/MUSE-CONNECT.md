@@ -132,9 +132,10 @@ The provider credential cannot approve jobs, fetch installable artifacts through
 console routes, or directly launch anything on the PS5.
 
 For continuous processing, follow the
-[unattended connector handoff](MUSE-UNATTENDED.md). It requires a supported Muse
-execution mechanism and a later scheduled canary; successful interactive API calls
-do not establish that the connector keeps running after the chat closes.
+[unattended connector guide](MUSE-UNATTENDED.md). The owner reports a Muse runtime
+schedule; a later plan-only canary received a verified response without another
+message to Muse. That guide separates this observed response from the remaining
+scheduler run-correlation, overlap and restart-recovery checks.
 
 The health response currently keeps `muse_connector_verified` hardcoded false.
 It is not a live authentication indicator. A successful outbox read establishes
@@ -152,8 +153,10 @@ saving a reusable connector helper in Muse.
 This establishes operator-reported Muse-to-relay connectivity through the named
 HTTPS tunnel, beyond the earlier Mac-side probes. The subsequent plan submission
 was independently confirmed through the console-facing API, as recorded below.
-The subsequent source/compile check also passed. The helper implementation,
-continuous unattended operation and PS5 operation remain unverified. The relay
+The subsequent source/compile check also passed. A later
+[unattended plan-only canary](MUSE-UNATTENDED.md#observed-plan-only-canary) received
+a verified plan without another message to Muse. The helper implementation,
+scheduler restart/overlap recovery and PS5 operation remain unverified. The relay
 health flags remain hardcoded false; they are not live connection indicators and
 were not changed for these checks.
 
@@ -208,8 +211,11 @@ package. The operator independently checked the source digest, result event,
 package report and full artifact-download hash.
 
 The test services are stopped and the public hostname again serves the normal
-relay. Its original plan remains unapproved, with zero jobs and unchanged title
-ledger. Resume the normal cursor at **1**, not the test result cursor **3**.
+relay. At restoration, its original plan remained unapproved, with zero jobs and
+unchanged title ledger; the normal checkpoint was **1**. Continue from the
+connector's persisted normal checkpoint, preserving any subsequent progress.
+Never import the isolated test result cursor **3**. See the
+[unattended guide](MUSE-UNATTENDED.md) for subsequent canary checks.
 See [verified source-test results](MUSE-SOURCE-TEST.md#verified-result), including
 the correction to the package size/hash in the first summary relayed from Muse.
 
