@@ -47,12 +47,14 @@ docker compose --env-file .env.relay --profile relay up -d relay builder
 docker compose --env-file .env.relay --profile relay ps
 ```
 
-Only the console listener is published to the LAN. The provider's host port stays
-on 127.0.0.1. The optional `provider-test` profile exposes that provider listener
-through a temporary authenticated HTTPS route for Muse; see
+Both host bindings default to loopback. On the owner's Opti3 deployment the
+console listener uses `192.168.5.54:8860`, and the provider now uses
+`192.168.5.54:8861` so the existing bridge-network Cloudflare tunnel can reach it.
+The named HTTPS route forwards only to the provider listener; see
 [connection setup](MUSE-CONNECT.md). It does not publish the console API.
-No router port-forward, permanent DNS route or Muse account enrollment is needed
-for this test. The authenticated SSH route can also operate the exchange.
+The optional `provider-test` profile remains available for a temporary HTTPS
+test instead. No router port-forward or Muse account enrollment is needed.
+The authenticated SSH route can also operate the exchange.
 A real Muse connector needs access to the exchange or the protected provider API;
 merely starting these containers does not connect Muse.
 

@@ -184,10 +184,11 @@ compile fixture and starting point, not an app produced by Muse.
 
 ## Authenticated provider transport
 
-The same exchange is exposed on a separate listener, port 8861. On Opti3 it binds
-only to host loopback. A connector running on the host can use it directly;
-a remote connector needs a deliberate protected connection such as the optional
-[HTTPS test tunnel](MUSE-CONNECT.md). The bearer token is read from a mode-0600
+The same exchange is exposed on a separate listener, port 8861. Its host binding
+defaults to loopback. The owner's Opti3 deployment explicitly selects its private
+LAN address so the named Cloudflare tunnel can reach it. Remote Muse requests use
+that [HTTPS provider hostname](MUSE-CONNECT.md#named-cloudflare-route), with the
+optional test tunnel retained as an alternative. The bearer token is read from a mode-0600
 file, is never passed to the PS5, and must not appear in prompts or source.
 
 | Endpoint | Purpose |
