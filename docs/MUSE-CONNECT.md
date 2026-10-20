@@ -131,6 +131,11 @@ idempotency rules are in [the exchange contract](MUSE-EXCHANGE.md#authenticated-
 The provider credential cannot approve jobs, fetch installable artifacts through
 console routes, or directly launch anything on the PS5.
 
+For continuous processing, follow the
+[unattended connector handoff](MUSE-UNATTENDED.md). It requires a supported Muse
+execution mechanism and a later scheduled canary; successful interactive API calls
+do not establish that the connector keeps running after the chat closes.
+
 The health response currently keeps `muse_connector_verified` hardcoded false.
 It is not a live authentication indicator. A successful outbox read establishes
 network/authentication reachability. The checks below separately verify a Muse
