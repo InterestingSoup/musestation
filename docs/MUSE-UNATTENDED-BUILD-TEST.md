@@ -1,10 +1,13 @@
 # Isolated unattended build test
 
-**Status, 2026-10-20:** isolated relay, compiler and temporary provider tunnel are
-running on Opti3; operator preflight passed. The fresh test outbox is empty.
-Muse's separate test scheduler still needs configuration and a confirmed scheduled
-empty check before the operator queues the request. No request, approval, source
-or build has been created in this test.
+**Status, 2026-10-20:** isolated relay and compiler are running on Opti3; the fresh
+test outbox is empty. Muse reports its separate test scheduler is enabled and its
+test credential is in the vault, but its first scheduled check hit a transport
+block. A successful empty check from that worker remains pending. The Quick
+Tunnel passed operator checks but Muse reported HTTP 403 from its environment.
+The operator has removed it and prepared a named-hostname backend; Cloudflare
+route creation and Muse-side verification remain pending. No request, approval,
+source or build has been created in this test.
 The [automatic plan canary](MUSE-UNATTENDED.md#observed-plan-only-canary) passed,
 and the earlier [Muse source/build test](MUSE-SOURCE-TEST.md#verified-result)
 passed with an interactive handoff. This test joins those two paths under the
@@ -15,10 +18,11 @@ scheduled worker.
 The owner authorized this isolated test on October 19; staging completed after
 midnight locally on October 20. It uses Compose project
 `musestation-unattended-test`, private runtime directory
-`runtime/muse-unattended-test/`, loopback console port `18870` and loopback provider
-port `18871`. A separate temporary HTTPS tunnel reaches only that test provider.
-The test uses distinct credentials; the normal named hostname and worker were
-not changed.
+`runtime/muse-unattended-test/` and loopback console port `18870`. The provider
+initially used loopback port `18871` with a separate temporary HTTPS tunnel; it
+now binds only the private LAN address `192.168.5.54:18871` for the proposed named
+route below. The test uses distinct credentials; the normal named hostname and
+worker were not changed.
 
 Preflight completed at `2026-10-20T07:01:50Z` on Opti3. An independent public
 outbox read from the development Mac also passed at `07:03:29Z`.
@@ -35,13 +39,12 @@ outbox read from the development Mac also passed at `07:03:29Z`.
 | Normal relay | Empty outbox after cursor 2; request/job/event snapshot and title ledger match the pre-test baseline. |
 | Native kit | Checksum matches the earlier successful build: `687a5605557b58ed1a954f59f228bdb198aa267cdd767d2a8bc999a2aeab86d1`. |
 
-The actual temporary URL and test credential are supplied in the owner's private
-`Muse-isolated-test-setup-PRIVATE.txt` handoff, outside Git. It asks Muse to
-configure a separate test connector and scheduler, retain its own cursor/journal/
-lock, and report a scheduled empty check. Credentials must not be included in that
-report. The operator will then queue a fresh request, review its returned plan,
-and approve exactly one compile/package attempt under the owner's test
-authorization.
+The connection handoff is private and outside Git. Muse reports that credentials
+can enter its vault only through its secure page; putting a token in a chat
+message does not configure the connector. The owner now reports this vault step
+is complete for the test connector. Muse uses its supported vault/surrogate
+mechanism rather than writing the credential into worker files. Credentials must
+not be included in the setup report.
 
 The private operator helper is `runtime/handoff/unattended-build-control.py`.
 Its `queue` action requires a saved Muse setup confirmation. Its `approve` action
@@ -50,6 +53,58 @@ requires the reviewed plan's exact revision; it does not approve on a timer.
 Runtime configuration, preflight evidence and later test results stay under the
 isolated runtime directory. Staging and connectivity checks do not establish an
 unattended source/build result.
+
+## Named-route migration and Muse setup report
+
+The owner relayed that Muse configured `musestation-unattended-test-worker` with
+its own state directory, cursor 0, journal and atomic `mkdir` acquisition lock.
+A later report confirms it is enabled and the test credential is in the vault,
+used through surrogates. Its normal worker is reported unchanged.
+
+The reported first scheduled run, `e1f02419-66a2-41b5-a087-6415de34dcbe` at
+`2026-10-20T07:16:05Z` (00:16:05 PDT), acquired and released the lock and attempted
+the outbox request at cursor 0. It received HTTP 403 and classified a transport
+block without advancing the cursor. Scheduler status `succeeded` therefore does
+not establish a successful API check. Muse reports that its 30-minute idle timer
+now begins at the first reachable check. No successful scheduled empty check has
+been provided yet.
+
+Muse reports that the Quick Tunnel origin returned a Cloudflare HTTP 403 from its
+environment with both the application and browser User-Agent. Operator-side
+checks succeeded earlier; they do not establish reachability from Muse. The exact
+cause of the environment-dependent block has not been independently established.
+A separate named route is the next transport to test, not a proven resolution.
+
+The operator prepared this published application:
+
+| Cloudflare setting | Value |
+|---|---|
+| Existing tunnel | The one already serving the normal MuseStation API. |
+| New hostname | `musestation-test-api.interestingsoup.com` |
+| Service type | `HTTP` |
+| Service URL | `192.168.5.54:18871` |
+| Path | Leave blank. |
+
+Create it as an additional route and retain the normal route. Cloudflare documents
+the hostname-to-local-service mapping in its
+[published application guide](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/routing-to-tunnel/).
+The test console approval listener remains `127.0.0.1:18870` and must not be
+published.
+
+At `2026-10-20T07:18:25Z`, a probe sharing the existing Cloudflare connector's
+network namespace reached the new private backend and received the expected
+HTTP 401 without credentials. An authenticated host check returned the empty
+outbox. The normal database/ledger still matched the baseline. These verify the
+origin connection, not DNS, public routing or Muse egress.
+
+The existing test token is unchanged. After the new route is saved, update only
+the existing test connector's origin (and its vault origin binding, if required)
+so the already-enabled worker uses the named endpoint. Verify authenticated HTTP
+200 through it and report a real scheduled empty-check run. Do not create a
+duplicate worker or reset its cursor. The operator will then queue a fresh
+request, review its returned plan, and approve exactly one compile/package
+attempt under the owner's test authorization. Keep the queue empty until the
+worker's transport check passes.
 
 ## Preserve the running connector
 
@@ -70,8 +125,9 @@ provider-tunnel profile. Its target must be the isolated provider listener, neve
 the console approval API. Configure the test runtime and ports separately before
 starting services. Share its generated credential only through Muse's private
 credential store, then verify the test connector sees the fresh empty outbox.
-For the active fixture above, the operator has already created this endpoint and
-credential. Future repetitions need a fresh isolated configuration.
+The active fixture's Quick Tunnel has been removed after the reported Muse
+transport block; follow the named-route migration above. Future repetitions need
+a fresh isolated configuration.
 
 ## Run one attempt
 
