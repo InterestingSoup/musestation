@@ -13,8 +13,9 @@ server. Local voice on the console; development and compilation through your rel
 [Project website](https://musestation.interestingsoup.com)
 
 > **Experimental preview · 01.005.000.** Native compilation, package checks and
-> host-side relay tests have passed. A real Muse workflow and PS5 hardware testing
-> are still pending. There is no public binary release yet.
+> host-side relay tests have passed. Muse plan exchange is verified; Muse
+> source/build integration and PS5 hardware testing remain pending.
+> There is no public binary release yet.
 
 ## From an idea to something you can play
 
@@ -61,13 +62,13 @@ progress are illustrative. The connection wizard is proposed, not implemented.
 |---|---|
 | **Native app + bundled models** | Docker compilation and complete package extraction/hash checks passed. |
 | **Docker relay + compiler worker** | 81 relay tests passed; a fixture request completed the real compile, package and download path. |
-| **Provider connection** | The owner confirmed an authenticated outbox read from Muse through the public HTTPS route. Request/plan/source exchange is the next verification step. |
+| **Provider connection** | Muse returned a plan for a host-simulated request; exact text and revision were verified through the console API. Muse source/build integration remains pending. |
 | **PS5 hardware** | Installation, GPU inference, microphone capture, speech playback and generated-app launch remain unverified. |
 
 The **01.005.000 development candidate** is a hardware-test candidate, not a
 confirmed stable release. No QR/device-code login flow is implemented.
 See the [build report](docs/BUILD-REPORT-INVENTORY.md) and
-[provider connection checks](docs/MUSE-CONNECT.md#named-endpoint-verification).
+[provider plan-exchange check](docs/MUSE-CONNECT.md#request-to-plan-verification).
 
 Receiving a console for the first time? Follow the [arrival-day guide](docs/FIRST-DAY.md)
 for offline setup, update controls, LAN isolation and the payload compatibility
@@ -85,9 +86,10 @@ Qwen2.5-Coder 1.5B are bundled. No first-run model download is required. Hybrid
 skips loading the coding model. GPU inference and CPU recovery are integrated;
 console performance remains to be measured.
 
-**Hybrid requires a configured Muse connector.** The owner's Muse workspace has
-successfully read the authenticated provider outbox. The full plan/source workflow
-still needs verification; starting the relay alone does not generate apps.
+**Hybrid requires a configured Muse connector.** A request reached the owner's
+Muse workspace and its returned plan was verified through the console-facing API.
+Muse source/build integration still needs verification; starting the relay alone
+does not generate apps.
 No QR, device-code or account-login flow is implemented. Other AI providers are
 not connected in this version.
 
@@ -301,7 +303,7 @@ Dependency fetchers and locks are included to reconstruct their build inputs.
 
 ## Help shape MuseStation
 
-Useful next contributions are a real Muse connector, first-hand hardware reports,
+Useful next contributions are Muse source/build integration, first-hand hardware reports,
 and feedback on the controller flow and setup experience. Include exact
 firmware/payload versions and distinguish a host test from a console result.
 

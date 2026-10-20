@@ -132,9 +132,10 @@ The provider credential cannot approve jobs, fetch installable artifacts through
 console routes, or directly launch anything on the PS5.
 
 The health response currently keeps `muse_connector_verified` hardcoded false.
-It is not a live authentication indicator. A successful provider response proves
-network/authentication reachability; a real request/plan round trip must still
-be observed before claiming the Muse integration works.
+It is not a live authentication indicator. A successful outbox read establishes
+network/authentication reachability. The request-to-plan check below separately
+verifies one Muse plan exchange; source/build integration and PS5 operation remain
+unverified.
 
 ## Muse-side connection report
 
@@ -144,25 +145,37 @@ returned HTTP 200 with `{"events":[],"next_after":0,"schema":1}`. They also repo
 saving a reusable connector helper in Muse.
 
 This establishes operator-reported Muse-to-relay connectivity through the named
-HTTPS tunnel, beyond the earlier Mac-side probes. The helper implementation,
-continuous polling, plan/source submissions and PS5 operation have not yet been
-verified. The relay health flags remain hardcoded false; they are not live
-connection indicators and were not changed for this report.
+HTTPS tunnel, beyond the earlier Mac-side probes. The subsequent plan submission
+was independently confirmed through the console-facing API, as recorded below.
+The helper implementation, continuous polling, source submission and PS5 operation
+remain unverified. The relay health flags remain hardcoded false; they are not
+live connection indicators and were not changed for these checks.
 
-## Next test: request to plan
+## Request-to-plan verification
 
-An operator-created, **host-simulated plan-only request** now asks Muse to describe
-a tiny counter app. It is visibly labeled as a test with no PS5 attached. The
-console protocol's `source:"on_console"` value is used by the host fixture; it
-does not assert physical-console execution.
+On 2026-10-19 (America/Los_Angeles), an operator-created, **host-simulated plan-only
+request** completed the request → Muse → plan → console API round trip. It asked
+for a fullscreen counter with Cross to increment, Square to reset and Circle to
+exit, and was explicitly labeled as a test with no PS5 attached. The console
+protocol's `source:"on_console"` value was used by the host fixture; it does not
+assert physical-console execution.
 
-The request was accepted with HTTP 200, its console-side plan read returned
-202 `planning`, and one matching `request` event was verified through the public
-provider API. There were **zero build jobs before and after submission**, and the
-title ledger was unchanged. The request ID and verification records stay in
-private runtime handoff files rather than being hardcoded into these instructions.
+| Check | Result |
+|---|---|
+| Host request submitted through the private console API | HTTP 200; initial plan read was 202 `planning`. |
+| Request visible through the public provider outbox | HTTP 200; matching request event at sequence 1. |
+| Muse plan submission | Owner reported HTTP 200 with `accepted:true` for the same request ID. |
+| Plan retrieved from the private console API | Independently verified HTTP 200 and exact agreement with the owner's reported plan text. |
+| Plan revision | Matched an independent SHA-256 calculation over the canonical request, parent fields and plan text; persisted database state was `ready`. |
+| Approval and allocation | Zero build jobs, zero `approved_job` events and zero title-ledger entries; ledger integrity verified. |
 
-For this test, Muse should:
+Verification completed at `2026-10-20T05:33:43Z` (the evening of October 19 locally).
+The request ID and detailed evidence remain in private runtime handoff files:
+`plan-smoke-submission.json`, `plan-smoke-provider-check.json` and
+`plan-smoke-completion.json`. The completion check used read-only API/database
+access. No approval, source submission, compilation or installation occurred.
+
+To repeat the plan-only check with a new operator-created request, Muse should:
 
 1. Read the provider outbox and locate the exact test request ID supplied by the
    operator. Do not treat unrelated requests as part of the test.
@@ -175,9 +188,10 @@ For this test, Muse should:
    anything. Persist the event cursor only after successful handling.
 
 The operator then reads `GET /plan/<actual-request-id>` on the private console
-listener and verifies HTTP 200, matching text and a relay-derived revision.
-That final read is still pending. This test does not allocate a title, compile,
-install, or bypass the controller/inventory gates.
+listener and verifies HTTP 200, matching text and the relay-derived revision,
+then confirms that no job or title allocation was created. Stop at this boundary:
+the source/build exchange is a separate test, and physical-console display,
+approval and installation still require hardware validation.
 
 ## Named endpoint verification
 
