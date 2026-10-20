@@ -11,9 +11,11 @@ The implemented transport can receive files from a future shared-storage connect
 or accept authenticated provider pushes. It does not call an undocumented Muse
 cloud endpoint. A host-simulated request completed the
 [Muse plan exchange](MUSE-CONNECT.md#request-to-plan-verification), with the exact
-returned text and revision verified through the console API. Muse source/build
-integration and PS5 operation remain unverified. Requests wait until the connector
-supplies their plans.
+returned text and revision verified through the console API. A separate
+[source/compile test](MUSE-SOURCE-TEST.md#verified-result) accepted actual Muse
+source and produced a package whose readback and download were verified.
+Approval/inventory were host simulations; PS5 operation remains unverified.
+Requests wait until the connector supplies their plans.
 Provider access can return a plan/source and read results; it cannot approve a plan.
 
 ```mermaid

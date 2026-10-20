@@ -114,6 +114,13 @@ revised through a new approved request.
 
 ## Verification evidence
 
+The [actual Muse source test](../../docs/MUSE-SOURCE-TEST.md#verified-result) passed
+on 2026-10-19: the connector submitted a counter app, and the isolated worker
+compiled and packaged it in 125.859 s and 7.798 s respectively. The 38,054,688-byte
+artifact passed 82-file readback and independent download/hash verification.
+Its approval and inventory were simulated; no PS5 execution occurred.
+The earlier human-authored fixture below remains separate evidence.
+
 `relay/tests/test_builder.py` covers source/path/identity limits, container
 isolation options, kit tampering, output traversal/quotas, deadline cleanup,
 bounded diagnostics and ownership-checked orphan recovery. These tests run in a

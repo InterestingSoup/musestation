@@ -17,8 +17,11 @@ The live data directory is `runtime/data`, exchange is `runtime/exchange`, and
 trusted kit is `runtime/native-kit-v1` under the project root. A host-simulated
 request reached Muse and its returned plan was independently verified through
 the console API. The plan-only check created no build jobs or title allocations.
-Muse source/build integration and PS5 operation remain unverified.
-See [connection and test status](MUSE-CONNECT.md#request-to-plan-verification).
+A separate [Muse source/compile test](MUSE-SOURCE-TEST.md#verified-result) also
+passed, including package readback and independent artifact-download verification.
+Its services are stopped and the normal public provider route is restored.
+The normal relay retains zero jobs; PS5 operation remains unverified.
+See [connection and test status](MUSE-CONNECT.md#source-and-compilation-test).
 The inventory requirement documented here is implemented in 01.005.000. Use the
 release report and deployment record for exact build and service evidence.
 

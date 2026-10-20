@@ -133,9 +133,9 @@ console routes, or directly launch anything on the PS5.
 
 The health response currently keeps `muse_connector_verified` hardcoded false.
 It is not a live authentication indicator. A successful outbox read establishes
-network/authentication reachability. The request-to-plan check below separately
-verifies one Muse plan exchange; source/build integration and PS5 operation remain
-unverified.
+network/authentication reachability. The checks below separately verify a Muse
+plan exchange and an isolated source/compile/package attempt. PS5 operation and
+unattended connector recovery remain unverified.
 
 ## Muse-side connection report
 
@@ -147,9 +147,10 @@ saving a reusable connector helper in Muse.
 This establishes operator-reported Muse-to-relay connectivity through the named
 HTTPS tunnel, beyond the earlier Mac-side probes. The subsequent plan submission
 was independently confirmed through the console-facing API, as recorded below.
-The helper implementation, continuous polling, source submission and PS5 operation
-remain unverified. The relay health flags remain hardcoded false; they are not
-live connection indicators and were not changed for these checks.
+The subsequent source/compile check also passed. The helper implementation,
+continuous unattended operation and PS5 operation remain unverified. The relay
+health flags remain hardcoded false; they are not live connection indicators and
+were not changed for these checks.
 
 ## Request-to-plan verification
 
@@ -195,13 +196,17 @@ approval and installation still require hardware validation.
 
 ## Source and compilation test
 
-The owner subsequently authorized a single host-only source/compile test.
-A separate relay store now holds a simulated approval for a copy of the accepted
-counter plan. The existing provider hostname temporarily serves that test store;
-the normal console API and its unapproved plan remain separate. The test worker
-is ready, and actual Muse source is pending.
-See [source-test instructions and isolation details](MUSE-SOURCE-TEST.md), including
-the separate outbox cursor and restoration procedure.
+The owner subsequently authorized a single host-only source/compile test in a
+separate store with a simulated approval and inventory. Muse submitted source for
+the accepted counter plan; the worker compiled it and verified a 38,054,688-byte
+package. The operator independently checked the source digest, result event,
+package report and full artifact-download hash.
+
+The test services are stopped and the public hostname again serves the normal
+relay. Its original plan remains unapproved, with zero jobs and unchanged title
+ledger. Resume the normal cursor at **1**, not the test result cursor **3**.
+See [verified source-test results](MUSE-SOURCE-TEST.md#verified-result), including
+the correction to the package size/hash in the first summary relayed from Muse.
 
 ## Named endpoint verification
 
