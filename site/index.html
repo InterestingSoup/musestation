@@ -4,16 +4,76 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101310">
-  <title>MuseStation — Make something worth playing.</title>
-  <meta name="description" content="A homebrew creation studio for PS5. Local voice, Muse-powered development, and a plan you approve. Explore the experimental MuseStation project.">
+  <title>MuseStation — PS5 Homebrew Creation Studio</title>
+  <meta name="description" content="MuseStation is an experimental PS5 homebrew creation studio. Local voice, Muse-powered development, and native app builds on your own Docker server.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="application-name" content="MuseStation">
   <link rel="canonical" href="https://musestation.interestingsoup.com/">
+  <link rel="sitemap" type="application/xml" href="sitemap.xml">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="MuseStation — Make something worth playing.">
-  <meta property="og:description" content="Your idea. Your console. Your creation. An experimental homebrew studio for PS5, with local voice and Muse-powered development.">
+  <meta property="og:site_name" content="MuseStation">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:title" content="MuseStation — PS5 Homebrew Creation Studio">
+  <meta property="og:description" content="MuseStation is an experimental PS5 homebrew creation studio. Local voice, Muse-powered development, and native app builds on your own Docker server.">
   <meta property="og:url" content="https://musestation.interestingsoup.com/">
-  <meta property="og:image" content="https://musestation.interestingsoup.com/assets/social.png">
+  <meta property="og:image" content="https://musestation.interestingsoup.com/assets/social-ps5-studio-v1.png">
+  <meta property="og:image:secure_url" content="https://musestation.interestingsoup.com/assets/social-ps5-studio-v1.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="MuseStation: PS5 Homebrew Creation Studio. Local voice, Muse-powered development, and your own build server. Experimental preview; console testing ahead.">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="icon" type="image/svg+xml" href="assets/mark.svg">
+  <meta name="twitter:title" content="MuseStation — PS5 Homebrew Creation Studio">
+  <meta name="twitter:description" content="MuseStation is an experimental PS5 homebrew creation studio. Local voice, Muse-powered development, and native app builds on your own Docker server.">
+  <meta name="twitter:image" content="https://musestation.interestingsoup.com/assets/social-ps5-studio-v1.png">
+  <meta name="twitter:image:alt" content="MuseStation: PS5 Homebrew Creation Studio. Local voice, Muse-powered development, and your own build server. Experimental preview; console testing ahead.">
+  <link rel="icon" type="image/png" sizes="96x96" href="assets/favicon-96.png">
+  <link rel="icon" type="image/svg+xml" sizes="any" href="assets/mark.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://musestation.interestingsoup.com/#website",
+        "url": "https://musestation.interestingsoup.com/",
+        "name": "MuseStation",
+        "alternateName": "MuseStation — PS5 Homebrew Creation Studio",
+        "inLanguage": "en"
+      },
+      {
+        "@type": "WebPage",
+        "@id": "https://musestation.interestingsoup.com/#webpage",
+        "url": "https://musestation.interestingsoup.com/",
+        "name": "MuseStation — PS5 Homebrew Creation Studio",
+        "description": "MuseStation is an experimental PS5 homebrew creation studio. Local voice, Muse-powered development, and native app builds on your own Docker server.",
+        "isPartOf": {"@id": "https://musestation.interestingsoup.com/#website"},
+        "mainEntity": {"@id": "https://musestation.interestingsoup.com/#project"},
+        "primaryImageOfPage": {
+          "@type": "ImageObject",
+          "url": "https://musestation.interestingsoup.com/assets/social-ps5-studio-v1.png",
+          "width": 1200,
+          "height": 630
+        },
+        "inLanguage": "en"
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://musestation.interestingsoup.com/#project",
+        "name": "MuseStation",
+        "url": "https://musestation.interestingsoup.com/",
+        "description": "Experimental open-source PS5 homebrew creation studio with local voice, an optional local Lua app lab, and a self-hosted Docker relay for Muse-assisted development. Full Muse integration and console hardware testing are pending.",
+        "codeRepository": "https://github.com/moiz-qureshi/musestation",
+        "programmingLanguage": ["C", "C++", "Python"],
+        "runtimePlatform": "PlayStation 5 homebrew with a self-hosted Docker build relay",
+        "license": "https://github.com/moiz-qureshi/musestation/blob/main/LICENSE",
+        "creativeWorkStatus": "Experimental preview",
+        "image": "https://musestation.interestingsoup.com/assets/social-ps5-studio-v1.png"
+      }
+    ]
+  }
+  </script>
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" defer></script>
 </head>
@@ -32,10 +92,10 @@
   <main id="main">
     <section class="hero wrap" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <div class="eyebrow"><span class="status-dot"></span> HOMEBREW, WITH AN IMAGINATION.</div>
+        <div class="eyebrow"><span class="status-dot"></span> PS5 HOMEBREW CREATION STUDIO</div>
         <h1 id="hero-title">Make something<br> worth <span class="accent">playing.</span></h1>
         <p class="lede">Your PS5 could be more than a place to play.<br class="desktop"> It could be a place to make.</p>
-        <p class="hero-description">MuseStation is a homebrew creation studio: bring an idea, review the plan, and let Muse help build it. Local voice on your console. Heavy lifting on your own server.</p>
+        <p class="hero-description">MuseStation is an experimental PS5 homebrew creation studio: bring an idea, review the plan, and let Muse help build it. Local voice on your console. Heavy lifting on your own server.</p>
         <div class="hero-actions">
           <a class="button primary" href="#how-it-works">Explore the idea <span aria-hidden="true">↓</span></a>
           <a class="text-link" href="https://github.com/moiz-qureshi/musestation">Follow on GitHub <span aria-hidden="true">↗</span></a>
