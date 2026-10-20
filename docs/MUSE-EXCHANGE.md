@@ -185,9 +185,9 @@ compile fixture and starting point, not an app produced by Muse.
 ## Authenticated provider transport
 
 The same exchange is exposed on a separate listener, port 8861. On Opti3 it binds
-only to host loopback. A future connector running on the host can use it directly;
-a remote connector needs a deliberate protected connection such as a tunnel.
-No public route has been configured. The bearer token is read from a mode-0600
+only to host loopback. A connector running on the host can use it directly;
+a remote connector needs a deliberate protected connection such as the optional
+[HTTPS test tunnel](MUSE-CONNECT.md). The bearer token is read from a mode-0600
 file, is never passed to the PS5, and must not appear in prompts or source.
 
 | Endpoint | Purpose |

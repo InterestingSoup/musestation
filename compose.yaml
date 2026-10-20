@@ -46,13 +46,33 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
-    labels:
+    labels: &musestation-dashboard
       homepage.group: ${MUSE_DASHBOARD_GROUP:-Personal}
       homepage.name: ${MUSE_DASHBOARD_NAME:-MuseStation}
       homepage.description: ${MUSE_DASHBOARD_DESCRIPTION:-PS5 build server and job relay}
       homepage.icon: ${MUSE_DASHBOARD_ICON:-mdi-sony-playstation}
       homepage.href: ${MUSE_DASHBOARD_URL:?Set the dashboard URL}
       homepage.siteMonitor: ${MUSE_DASHBOARD_HEALTH_URL:?Set the health URL}
+
+  # Optional, temporary HTTPS entry point for testing a remote Muse connector.
+  # It reaches the provider listener only, never the console/approval listener.
+  provider-tunnel:
+    image: ${MUSE_PROVIDER_TUNNEL_IMAGE:-cloudflare/cloudflared@sha256:21f3607baf2384c54d592b0efe76dd5f548c0dbc083e62fa22c7fac3923d077f}
+    profiles: [provider-test]
+    network_mode: service:relay
+    command: ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:20243", "--url", "http://127.0.0.1:8861"]
+    depends_on:
+      relay:
+        condition: service_healthy
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 192m
+    cpus: 0.5
+    restart: "no"
+    labels: *musestation-dashboard
 
   builder:
     image: musestation-relay:local

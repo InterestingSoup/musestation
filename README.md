@@ -131,6 +131,8 @@ Follow the [relay deployment guide](docs/RELAY-DEPLOY.md) and
 through `.env.example`, using your own paths, runtime IDs, private IP and credentials.
 The operator prepares the verified compiler/packager images and native kit, then
 connects Muse to the exchange folder or provider API.
+For a Muse workspace with outbound HTTPS, use the
+[provider connection test](docs/MUSE-CONNECT.md); a shared drive is not required.
 
 **“Opti3” in the current interface is the development server's name**, not special
 hardware or a public server you can use. Its addresses and directories in the
