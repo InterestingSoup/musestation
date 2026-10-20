@@ -1,0 +1,104 @@
+--- a/src/LibProsperoPkg/PFS/ProsperoOuterPfsBuilder.cs
++++ b/src/LibProsperoPkg/PFS/ProsperoOuterPfsBuilder.cs
+@@ -218,7 +218,6 @@
+         // BlockSize/36 sig+block entries). The indirect block(s) are laid out after the FLT, before the uroot
+         // dirents (the outer layout places pfs_image.dat's indirect block at D+4).
+         const int DirectBlockSlots = 12;
+-        const int IndirectBlockSlots = 5; // the inode ib[] table depth; each entry is one single-indirect block
+         int indirectEntriesPerBlock = BlockSize / 36;
+         var fileIndirectBlock = new int[files.Count];
+         for (int i = 0; i < files.Count; i++) fileIndirectBlock[i] = -1;
+@@ -229,14 +228,11 @@
+             if (fileBlockCount[i] > DirectBlockSlots)
+             {
+                 int extra = fileBlockCount[i] - DirectBlockSlots;
+-                int needed = (extra + indirectEntriesPerBlock - 1) / indirectEntriesPerBlock;
+-                if (needed > IndirectBlockSlots)
+-                {
+-                    long maxBlocks = DirectBlockSlots + (long)IndirectBlockSlots * indirectEntriesPerBlock;
+-                    throw new NotSupportedException(
+-                        $"Outer file '{files[i].Name}' spans {fileBlockCount[i]} blocks; one inode addresses at most " +
+-                        $"{maxBlocks} blocks (~{maxBlocks * (long)BlockSize / (1024 * 1024)} MiB).");
+-                }
++                int leaves = (extra + indirectEntriesPerBlock - 1) / indirectEntriesPerBlock;
++                if (leaves > 1 + indirectEntriesPerBlock)
++                    throw new NotSupportedException("Outer file requires unsupported triple indirection.");
++                // ib[0] addresses one leaf. ib[1] addresses a block of leaf pointers.
++                int needed = leaves + (leaves > 1 ? 1 : 0);
+                 fileIndirectBlock[i] = indirectRegionStart + indirectBlocksTotal;
+                 indirectBlocksTotal += needed;
+             }
+@@ -290,7 +286,8 @@
+         {
+             if (fileIndirectBlock[i] < 0) continue;
+             int extra = fileBlockCount[i] - DirectBlockSlots;
+-            int needed = (extra + indirectEntriesPerBlock - 1) / indirectEntriesPerBlock;
++            int leaves = (extra + indirectEntriesPerBlock - 1) / indirectEntriesPerBlock;
++            int needed = leaves + (leaves > 1 ? 1 : 0);
+             for (int b = 0; b < needed; b++)
+                 kinds[fileIndirectBlock[i] + b] = ProsperoOuterBlockKind.Signed;
+         }
+@@ -587,30 +584,45 @@
+ 
+             if (blockCount > di.db.Length)
+             {
+-                // Spill blocks [12 .. blockCount) into the indirect block as 36-byte {sig, block} entries,
+-                // then point ib[0] at that block with a SHA3 hash of its serialized content.
++                // Match the generic PFS builder/reader: ib[0] is single indirect;
++                // ib[1] is double indirect. Every pointer carries the target block SHA3.
+                 int indirectBase = fileIndirectBlock[i];
+                 if (indirectBase < 0)
+-                    throw new InvalidOperationException("Indirect block was not allocated for a >12-block file.");
++                    throw new InvalidOperationException("Indirect blocks were not allocated.");
+                 int extra = blockCount - di.db.Length;
+-                int needed = (extra + indirectEntriesPerBlock - 1) / indirectEntriesPerBlock;
+-                for (int k = 0; k < extra; k++)
++                int leaves = (extra + indirectEntriesPerBlock - 1) / indirectEntriesPerBlock;
++                int doubleRoot = leaves > 1 ? indirectBase + 1 : -1;
++                for (int leaf = 0; leaf < leaves; leaf++)
+                 {
+-                    int blk = firstBlock + di.db.Length + k;
+-                    int ibBlockIdx = indirectBase + (k / indirectEntriesPerBlock);
+-                    int slot = k % indirectEntriesPerBlock;
+-                    int entryOff = ibBlockIdx * BlockSize + slot * 36;
+-                    byte[] hash = ProsperoOuterPfsSignature.ComputeBlockHash(
+-                        image.AsSpan(blk * BlockSize, BlockSize));
+-                    hash.CopyTo(image, entryOff);
+-                    BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(entryOff + 32), blk);
++                    int leafBlock = leaf == 0 ? indirectBase : indirectBase + 1 + leaf;
++                    int count = Math.Min(indirectEntriesPerBlock, extra - leaf * indirectEntriesPerBlock);
++                    for (int slot = 0; slot < count; slot++)
++                    {
++                        int blk = firstBlock + di.db.Length + leaf * indirectEntriesPerBlock + slot;
++                        int entryOff = leafBlock * BlockSize + slot * 36;
++                        ProsperoOuterPfsSignature.ComputeBlockHash(image.AsSpan(blk * BlockSize, BlockSize))
++                            .CopyTo(image, entryOff);
++                        BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(entryOff + 32), blk);
++                    }
++                    byte[] leafHash = ProsperoOuterPfsSignature.ComputeBlockHash(
++                        image.AsSpan(leafBlock * BlockSize, BlockSize));
++                    if (leaf == 0)
++                    {
++                        di.ib[0].sig = leafHash;
++                        di.ib[0].block = leafBlock;
++                    }
++                    else
++                    {
++                        int entryOff = doubleRoot * BlockSize + (leaf - 1) * 36;
++                        leafHash.CopyTo(image, entryOff);
++                        BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(entryOff + 32), leafBlock);
++                    }
+                 }
+-                for (int b = 0; b < needed && b < di.ib.Length; b++)
++                if (doubleRoot >= 0)
+                 {
+-                    int ibBlockIdx = indirectBase + b;
+-                    di.ib[b].sig = ProsperoOuterPfsSignature.ComputeBlockHash(
+-                        image.AsSpan(ibBlockIdx * BlockSize, BlockSize));
+-                    di.ib[b].block = ibBlockIdx;
++                    di.ib[1].sig = ProsperoOuterPfsSignature.ComputeBlockHash(
++                        image.AsSpan(doubleRoot * BlockSize, BlockSize));
++                    di.ib[1].block = doubleRoot;
+                 }
+             }
+             inodes.Add(di);

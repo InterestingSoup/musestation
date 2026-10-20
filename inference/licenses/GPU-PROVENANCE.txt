@@ -1,0 +1,8 @@
+GPU source pins (all public source included in corresponding-source archive):
+PS5_Vulkan f410e67a0241b3e8edcdbcd2a9b285dfc4a412ed https://github.com/mihawk-99/PS5_Vulkan.git
+PS5_Mesa 1ba9874f478657ccf6da72ce55f0260164cc0bd0 https://github.com/mihawk-99/PS5_Mesa.git
+PS5_PayloadSDK b83202be73e930050e00de0f1b4d9ec46c0391bf https://github.com/mihawk-99/PS5_PayloadSDK.git
+Native link and OpenGL symbol isolation are adapted from PS5LM 6323ecbf443e257932989a55cf535567697e2624 (GPL-3.0-or-later).
+Optional weak dispatch treatment follows PSllama d079717184d8153793789f13ed157c1c70390ba0 (GPL-3.0-or-later).
+The driver uses the pinned upstream RADV release recipe. Muse adapters and source are GPL-3.0-or-later.
+Mesa contains multiple compatible licenses; see PS5_Mesa-LICENSE, PS5_Mesa-licenses and per-file source notices.

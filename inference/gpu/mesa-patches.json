@@ -1,0 +1,11 @@
+{
+  "base": "1ba9874f478657ccf6da72ce55f0260164cc0bd0",
+  "revision": "b86c6e3979cfb580b32ffb27a90c6a39cb83fb2c",
+  "source": "https://github.com/cobanov/PS5LM/tree/6323ecbf443e257932989a55cf535567697e2624/patches/mesa",
+  "license": "GPL-3.0-or-later",
+  "patches": {
+    "0007-radv-ps5-a-destroyed-buffer-s-memory-waits-for-the-G.patch": "8ca051eec7882355fee1893acec387bf266a87ef4ecfff77654b93b30b350d46",
+    "0008-radv-ps5-submissions-handed-to-a-thread-of-their-own.patch": "1d442b5efda087d3c594b9191291fc5193f170744f877cacaab45cdd7300a3f1",
+    "0009-radv-ps5-the-GPU-waits-spin-and-sleep-chosen-at-run-.patch": "134e8944a59d7d6ef1967ab2f4bc83474a6aba922d99c3688d799a38cb09866c"
+  }
+}

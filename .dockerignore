@@ -1,0 +1,15 @@
+**/.git
+vendor/PS5LM
+vendor/psbox
+vendor/psllama
+logs
+dist
+build
+assets/inference
+inference/build
+inference/vendor
+runtime
+**/.env
+**/.env.*
+**/secrets
+**/__pycache__

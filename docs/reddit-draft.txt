@@ -1,0 +1,20 @@
+Title: PS5 Slim 12.40 + Relapse: which separate payload builds are confirmed for native homebrew?
+
+I'm preparing a PS5 Slim on firmware 12.40 for my own homebrew development. I don't have the console in hand yet, so I haven't tested this setup and don't want to mistake exploit coverage for full payload compatibility.
+
+The current official Relapse README lists 7.00–13.60 and an ELF loader on port 9021. Its payloads directory currently contains the loader and kernel exploit, but no etaHEN, kstuff or ShadowMountPlus. The older DNS/hosting directions were also removed from the README.
+
+Has anyone actually tested native homebrew on a Slim running 12.40 with this setup?
+
+- Which exact etaHEN and kstuff/kstuff-lite release or commit works? Are there firmware-specific or experimental builds?
+- Is ShadowMountPlus required for launching a native homebrew title, or is there a working direct .pkg installation route?
+- Which installer/launch combination have you successfully used on 12.40? Please distinguish an ELF payload working from a native title installing and launching.
+- Does Relapse's bundled ELF loader suffice for those payloads, or is a particular separate elfldr build required?
+
+Official repository/release links, commit hashes, console model and first-hand results would be especially helpful. If native package installation on 12.40 is still unsupported or unverified, that answer is useful too. I'm keeping this console on 12.40.
+
+References checked:
+https://github.com/ntfargo/Relapse-Exploit
+https://github.com/ntfargo/Relapse-Exploit/tree/main/payloads
+https://github.com/ntfargo/Relapse-Exploit/commit/dd8e4e0914c5e9d066ee1f9b056be76cb992c8e0
+https://github.com/etaHEN/etaHEN/releases

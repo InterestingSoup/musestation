@@ -1,0 +1,5 @@
+{
+  "PS5_Vulkan": {"repo": "https://github.com/mihawk-99/PS5_Vulkan.git", "revision": "f410e67a0241b3e8edcdbcd2a9b285dfc4a412ed"},
+  "PS5_Mesa": {"repo": "https://github.com/mihawk-99/PS5_Mesa.git", "revision": "1ba9874f478657ccf6da72ce55f0260164cc0bd0"},
+  "PS5_PayloadSDK": {"repo": "https://github.com/mihawk-99/PS5_PayloadSDK.git", "revision": "b83202be73e930050e00de0f1b4d9ec46c0391bf"}
+}

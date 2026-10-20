@@ -1,0 +1,7 @@
+Muse RADV includes the exact GPL-3.0-or-later patches from:
+https://github.com/cobanov/PS5LM/tree/6323ecbf443e257932989a55cf535567697e2624/patches/mesa
+Original patch authors: PS5CEMU-HAR / ps5cemu; retained headers in corresponding source.
+Base: 1ba9874f478657ccf6da72ce55f0260164cc0bd0
+Patched revision: b86c6e3979cfb580b32ffb27a90c6a39cb83fb2c
+0007 always defers GPU buffer frees until submitted work finishes.
+0008/0009 optional submit-thread/wait tuning remains disabled/default.

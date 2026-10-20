@@ -1,0 +1,46 @@
+--- a/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageReader.cs
++++ b/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageReader.cs
+@@ -95,7 +95,6 @@
+         long metaBase = boundaries.LastOrDefault(v => v < mountSize);
+ 
+         var mount = new byte[mountSize];
+-        byte[] innerArr = innerImage.ToArray();
+ 
+         long onDisk = 0, uncompOff = 0;
+         for (int i = 0; i < cb.Count; i++)
+@@ -123,7 +122,7 @@
+             int totalComp = (int)(nextRel - thisRel);
+             bool kraken = e.KdePredictor == 2;
+ 
+-            DecodeBlockInto(innerArr, onDisk, totalComp, evenComp, (int)uncompLen, kraken,
++            DecodeBlockInto(innerImage, onDisk, totalComp, evenComp, (int)uncompLen, kraken,
+                             mount, (int)uncompOff);
+ 
+             uncompOff += uncompLen;
+@@ -256,7 +255,7 @@
+     // the metadata region) are stored UN-shuffled on disk — decoding them yields the final plaintext
+     // directly (applying the de-interleave would corrupt them). A package with genuinely shuffled blocks
+     // would need a per-64K-sub-block de-interleave reintroduced here.
+-    private static void DecodeBlockInto(byte[] inner, long onDisk, int totalComp, int evenComp,
++    private static void DecodeBlockInto(ReadOnlySpan<byte> inner, long onDisk, int totalComp, int evenComp,
+         int uncompLen, bool kraken, byte[] mount, int mountOff)
+     {
+         int room = mount.Length - mountOff;
+@@ -270,7 +269,7 @@
+             if (onDisk >= 0 && onDisk < inner.Length)
+             {
+                 int avail = (int)Math.Min(copyLen, inner.Length - onDisk);
+-                Array.Copy(inner, onDisk, mount, mountOff, avail);
++                inner.Slice((int)onDisk, avail).CopyTo(mount.AsSpan(mountOff, avail));
+             }
+             return;
+         }
+@@ -278,7 +277,7 @@
+         if (onDisk < 0 || onDisk + totalComp > inner.Length || totalComp <= 0)
+             return;
+ 
+-        var src = inner.AsSpan((int)onDisk, totalComp);
++        var src = inner.Slice((int)onDisk, totalComp);
+         int firstChunkComp = uncompLen > Chunk128K ? evenComp : 0;
+         var decoded = new byte[uncompLen];
+ 

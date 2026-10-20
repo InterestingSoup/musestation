@@ -1,0 +1,2 @@
+#!/bin/sh
+exec sh "${MUSE_NATIVE_ROOT:?set MUSE_NATIVE_ROOT}/tooling/prospero-clang18" "$@"

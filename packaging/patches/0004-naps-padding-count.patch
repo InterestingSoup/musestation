@@ -1,0 +1,15 @@
+--- a/src/LibProsperoPkg/PKG/ProsperoNapsLayout.cs
++++ b/src/LibProsperoPkg/PKG/ProsperoNapsLayout.cs
+@@ -354,6 +354,12 @@
+     /// </summary>
+     public static int DeriveFidxEntryCount(NapsLayoutCounts counts, long blobLength)
+     {
++        // Our serialized header includes all pseudo-file offsets. Prefer its
++        // count when the complete section map plus ordinary 16-byte end padding
++        // matches the blob. Otherwise 6/12 padding bytes masquerade as fidx rows.
++        long declaredSize = SectionMap(counts, counts.NumFileOffsetEntries).TotalSize;
++        if (declaredSize <= blobLength && (declaredSize + 15) / 16 * 16 == blobLength)
++            return counts.NumFileOffsetEntries;
+         long fixedBefore = HeaderSize
+             + (long)counts.NumOuterBlocks * OuterBlockDigestStride
+             + (long)counts.NumShufflePatterns * ShufflePatternStride

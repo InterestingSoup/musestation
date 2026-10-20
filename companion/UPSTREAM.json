@@ -1,0 +1,243 @@
+{
+  "repository": "https://github.com/facebookincubator/muse-gadget-sdk",
+  "revision": "e5c4662242c23a5a786cf49f75626ae31283bbc1",
+  "license": "Apache-2.0",
+  "scope": "unmodified linux subtree and root LICENSE; no installer executed",
+  "files": [
+    {
+      "path": "LICENSE",
+      "bytes": 11326,
+      "sha256": "0353a8ae950232a70f0379a4b8a10b661b2f3e3a598e9411332fc0d4f98947fa"
+    },
+    {
+      "path": "linux/.gitignore",
+      "bytes": 668,
+      "sha256": "b308c908661b3d0a3f919874e9b8b9aa129ffbca85cfb0e993f94a78a576812d"
+    },
+    {
+      "path": "linux/AGENTS.md",
+      "bytes": 9209,
+      "sha256": "1369e40f0a54c31a8d2c0d5290768181e8e0f2a40a95b80320dcabac802a7121"
+    },
+    {
+      "path": "linux/README.md",
+      "bytes": 6170,
+      "sha256": "7bbe2a88af7baa53c4375a4ef4e544202e6e75313d11c63a59b6e58b18fa02ce"
+    },
+    {
+      "path": "linux/examples/pebble-ring-bridge.service",
+      "bytes": 1188,
+      "sha256": "00297f85c32918b03bdee63f537306c3abf5888f0a2449b338695424d6743d7e"
+    },
+    {
+      "path": "linux/examples/pebble_ring_bridge.py",
+      "bytes": 6298,
+      "sha256": "c8ebb7f4a3b3f444ba035ba5b3ea4763f85ce02c177177044dad371b9328697d"
+    },
+    {
+      "path": "linux/install.sh",
+      "bytes": 16897,
+      "sha256": "319582e96448f67725b805ef2c2858543970a08689c23b3c1323d5394af9f9c4"
+    },
+    {
+      "path": "linux/pyproject.toml",
+      "bytes": 1344,
+      "sha256": "c63e8282154590d1afe598e9be1dbb6e06c3f00dc5b117e940189a6c08104b28"
+    },
+    {
+      "path": "linux/src/musegadget/__init__.py",
+      "bytes": 647,
+      "sha256": "ca05f6c0625ebfb00053734dcaef8cbf00a4c499e962e6e8346c0aa9a2a3d6a9"
+    },
+    {
+      "path": "linux/src/musegadget/__main__.py",
+      "bytes": 662,
+      "sha256": "0a12bb0246cb2e6ca329307f29cfbba60662faf774d764437e28738358fb561b"
+    },
+    {
+      "path": "linux/src/musegadget/ble_framing.py",
+      "bytes": 2987,
+      "sha256": "b788a4f1f5362a9dae2d2718f976f27d52508924015cb0c46e09be5efc780222"
+    },
+    {
+      "path": "linux/src/musegadget/ble_server.py",
+      "bytes": 13380,
+      "sha256": "61a7bd01291896212911f4b285c39cb783d41447520dfe872fd2f48af4c57b0d"
+    },
+    {
+      "path": "linux/src/musegadget/ble_setup.py",
+      "bytes": 12906,
+      "sha256": "ac67a5650fe750d6cae44af8439e667be5bf5a7543287d0179cf53dc4f14a68a"
+    },
+    {
+      "path": "linux/src/musegadget/cli.py",
+      "bytes": 6657,
+      "sha256": "c8e5b9c5a51ddeb74dc3d09fa0b8d51e3cd26771f59a4e4632fe0b0b5ee7d2a0"
+    },
+    {
+      "path": "linux/src/musegadget/config.py",
+      "bytes": 3644,
+      "sha256": "6b77617e7b42b791d56dfb3fe1abd8a9338229ee572b2953e6793d02ce31ccea"
+    },
+    {
+      "path": "linux/src/musegadget/data/musegadget.service",
+      "bytes": 1222,
+      "sha256": "99b3820b3eb2b88f67c5cf42ce03b347c700a92af4c89f02a30d10b2eab3a74c"
+    },
+    {
+      "path": "linux/src/musegadget/data/requirements.lock",
+      "bytes": 28240,
+      "sha256": "a73adf6c757525187087d14b8252661aee927d6f05e17ad7f3a198e553b46bc6"
+    },
+    {
+      "path": "linux/src/musegadget/executor.py",
+      "bytes": 12399,
+      "sha256": "c0dac7a5749f5f213d3ab5d62c84826d5fee17e33a00003fe1f25fc11a8d50cf"
+    },
+    {
+      "path": "linux/src/musegadget/fileops.py",
+      "bytes": 5123,
+      "sha256": "de68878a0bb0906a09b09c6b521ea4d44c9d389047fc43695b32cb3d5a6f1943"
+    },
+    {
+      "path": "linux/src/musegadget/identity.py",
+      "bytes": 2538,
+      "sha256": "04ffb844aba378247b257c1927799aba3d0f60a5a50b50c1ea5595933a13f490"
+    },
+    {
+      "path": "linux/src/musegadget/link_client.py",
+      "bytes": 28673,
+      "sha256": "df95c0be778b849bdf120c7540273489f78f6d0be157cb38eae0267785c97f16"
+    },
+    {
+      "path": "linux/src/musegadget/muse_api.py",
+      "bytes": 6147,
+      "sha256": "6573fafb90b1a3bb18d36fd9634eb8d98b556b6b5caa899520aa3a53025177b9"
+    },
+    {
+      "path": "linux/src/musegadget/muse_turn.py",
+      "bytes": 21762,
+      "sha256": "80d7b875301c6bae9122fcef7e6dcea1e6ba38d44e36cc727abd04e4a10e17dd"
+    },
+    {
+      "path": "linux/src/musegadget/network.py",
+      "bytes": 4800,
+      "sha256": "f80d4552992824973f05dd276e8fde987689c88af523afbc5f6d465099893d22"
+    },
+    {
+      "path": "linux/src/musegadget/noise/__init__.py",
+      "bytes": 2133,
+      "sha256": "b7d46a042a6cff22cd4a75b114caf3e973073720c1ced9b263123951937246e2"
+    },
+    {
+      "path": "linux/src/musegadget/noise/_proto.py",
+      "bytes": 5889,
+      "sha256": "dc523508f7363b276d4fde0513a8b5e7ac0bc2f56e736a3bacb2000af91cd8a3"
+    },
+    {
+      "path": "linux/src/musegadget/noise/envelope.py",
+      "bytes": 15856,
+      "sha256": "fbc8ff41059e2dc2c53fdc4aa42087b12d0e6202d2cb3f27a08603b5c76228ba"
+    },
+    {
+      "path": "linux/src/musegadget/noise/framing.py",
+      "bytes": 7915,
+      "sha256": "cf4d7e3f8478f917612aaecec80b207a56ba16bc98b4ed39549d56cdc1d3e986"
+    },
+    {
+      "path": "linux/src/musegadget/noise/noise_xx.py",
+      "bytes": 17379,
+      "sha256": "e90e79cf87f8e44b3b6da095e70dbb1c66bd441eeef753cd1c426acecc7d5157"
+    },
+    {
+      "path": "linux/src/musegadget/noise/transport.py",
+      "bytes": 8149,
+      "sha256": "1e105c6d81e855d4a53b95a9d697a204bfc5a90748d32520e0e6f2733973821b"
+    },
+    {
+      "path": "linux/src/musegadget/pair.py",
+      "bytes": 5489,
+      "sha256": "8e682f2c6a440783d1735a49d9f011750b98a483fda1ed7260d1e8d75377cafb"
+    },
+    {
+      "path": "linux/src/musegadget/pairing.py",
+      "bytes": 18462,
+      "sha256": "529309cb3c72c3f1c7ba6791243019511129d620c7020f19b6b5fb254c6b14f5"
+    },
+    {
+      "path": "linux/src/musegadget/service.py",
+      "bytes": 11012,
+      "sha256": "d4cd1ddd9af65a2ecfaed48bba12e6ca4fbadea5a3be4afaee6f90b00f9d40da"
+    },
+    {
+      "path": "linux/tests/test_ble_framing.py",
+      "bytes": 2895,
+      "sha256": "f436c8bd69fb8921c17022639a81be44d4f64a35702dda69ba636e67d755b673"
+    },
+    {
+      "path": "linux/tests/test_ble_setup.py",
+      "bytes": 10170,
+      "sha256": "c755c7c8b2a2fb09fbca88147232247c08b593b204bca7c87a680d9f38343f97"
+    },
+    {
+      "path": "linux/tests/test_config.py",
+      "bytes": 2381,
+      "sha256": "50357641d8dc5a2c1fa7077b14b87368561e53731605de850fbf9c1600b25f9a"
+    },
+    {
+      "path": "linux/tests/test_executor.py",
+      "bytes": 9112,
+      "sha256": "73a8542f15eea19ac9f62e6a1929dd20c885e780013a402d112d65da275226c0"
+    },
+    {
+      "path": "linux/tests/test_identity.py",
+      "bytes": 1629,
+      "sha256": "6e1531b6cc2ba7ea9b4ec8a0efb1e78cdea34855c0973cdf68ad09cddee382de"
+    },
+    {
+      "path": "linux/tests/test_link_client.py",
+      "bytes": 26539,
+      "sha256": "72e11105fe7970a100700710e2c94b7ac8a0ad93beedec1323bc392fb888c119"
+    },
+    {
+      "path": "linux/tests/test_muse_api.py",
+      "bytes": 2207,
+      "sha256": "598833e9238b436c172e1efb30c4815c375959a890ee3f0cd4b0fd60f97f5f87"
+    },
+    {
+      "path": "linux/tests/test_muse_turn.py",
+      "bytes": 14199,
+      "sha256": "1cedc22db56a89e92719a465488a70a07f5ed0d017e0db90cf23541885a4a4b0"
+    },
+    {
+      "path": "linux/tests/test_network.py",
+      "bytes": 6764,
+      "sha256": "c868f6f6510c9d7beebeb926a08ffc4706fea598c06d7715ca53ae5d805f49c2"
+    },
+    {
+      "path": "linux/tests/test_pair.py",
+      "bytes": 5329,
+      "sha256": "cedacb00f131270912bf735dd102533e02e7f2deab1de515241f82a0ef9e460d"
+    },
+    {
+      "path": "linux/tests/test_pairing.py",
+      "bytes": 15352,
+      "sha256": "9d2b7b1a159d95faa499109f6d9854592b7b27bbe1754cd6bd4402a054a2cea4"
+    },
+    {
+      "path": "linux/tests/test_pebble_ring_bridge.py",
+      "bytes": 4224,
+      "sha256": "f1e25ae755c3080e153a350955e3a2dee16717c10d5ae0c8b628bb9ca4e9d2aa"
+    },
+    {
+      "path": "linux/tests/test_service.py",
+      "bytes": 6772,
+      "sha256": "c4feb04f54dbd288265ae2eb49fd91597dfe15b78e0b6412f4166d629d907e3c"
+    },
+    {
+      "path": "linux/tests/vectors/link_pairing_v5.json",
+      "bytes": 7920,
+      "sha256": "4fac87ed05ad0c9a76c198a92b95bb0c2a478629e2c986aad8231480841fa12c"
+    }
+  ]
+}

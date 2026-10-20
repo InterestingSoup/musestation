@@ -1,0 +1,11 @@
+<Project>
+  <!-- The public upstream carries a prebuilt right.sprx with no corresponding
+       source/provenance in its NOTICE. GetRightSprx explicitly permits absence.
+       Do not inject this opaque executable into our self-authored package. -->
+  <Target Name="MuseOmitOpaqueRightsModule" BeforeTargets="PrepareResources">
+    <ItemGroup>
+      <EmbeddedResource Remove="PlayGo/Data/right.sprx" />
+      <EmbeddedResource Remove="PlayGo\Data\right.sprx" />
+    </ItemGroup>
+  </Target>
+</Project>

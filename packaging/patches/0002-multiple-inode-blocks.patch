@@ -1,0 +1,89 @@
+--- a/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageAssembler.cs
++++ b/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageAssembler.cs
+@@ -440,7 +440,10 @@
+         // dirents block (metaBase) is the third metadata block, so metaBase = dataBlocks + 61 + 2. Ndblock is
+         // the end of the metadata region = metaBase + metadataContentBlocks.
+         const long MetadataReserveBlocks = 61;
+-        long metaBaseBlock = dataBlocks + MetadataReserveBlocks + 2;
++        int inodeCount = 4 + dirsPreOrder.Count + fileNodes.Count;
++        int inodesPerBlock = BlockSize / 0xA8;
++        int inodeBlocks = (inodeCount + inodesPerBlock - 1) / inodesPerBlock;
++        long metaBaseBlock = dataBlocks + MetadataReserveBlocks + 1 + inodeBlocks;
+         long metaBase = metaBaseBlock * BlockSize;
+         ndblock = metaBaseBlock + metadataContentBlocks;
+ 
+--- a/src/LibProsperoPkg/PFS/ProsperoPs5InnerMetadata.cs
++++ b/src/LibProsperoPkg/PFS/ProsperoPs5InnerMetadata.cs
+@@ -105,7 +105,7 @@
+     }
+ 
+     /// <summary>Builds the superblock block (block 0).</summary>
+-    private byte[] BuildSuperblock(int inodeCount, long ndblock)
++    private byte[] BuildSuperblock(int inodeCount, long ndblock, int inodeBlocks)
+     {
+         byte[] sb = new byte[0x369];
+         BinaryPrimitives.WriteInt64LittleEndian(sb, 2);                           // version
+@@ -116,14 +116,14 @@
+         BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0x28), 1);              // NBlock
+         BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0x30), inodeCount);     // DinodeCount
+         BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0x38), ndblock);        // Ndblock
+-        BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0x40), 1);              // DinodeBlockCount
++        BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0x40), inodeBlocks);              // DinodeBlockCount
+         BinaryPrimitives.WriteUInt32LittleEndian(sb.AsSpan(0x50), BlockSize);
+         BinaryPrimitives.WriteUInt32LittleEndian(sb.AsSpan(0x54), 0x10);
+-        BinaryPrimitives.WriteUInt32LittleEndian(sb.AsSpan(0x58), BlockSize);
+-        BinaryPrimitives.WriteUInt32LittleEndian(sb.AsSpan(0x60), BlockSize);
++        BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0x58), (long)inodeBlocks * BlockSize);
++        BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0x60), (long)inodeBlocks * BlockSize);
+         for (int t = 0; t < 4; t++) BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0x68 + t * 8), _timeSec);
+         for (int t = 0; t < 4; t++) BinaryPrimitives.WriteUInt32LittleEndian(sb.AsSpan(0x88 + t * 4), _timeNsec);
+-        BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0xb0), 1);
++        BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0xb0), inodeBlocks);
+         BinaryPrimitives.WriteInt64LittleEndian(sb.AsSpan(0xd8), 0x89);           // UnknownIndex
+         sb[0x368] = 1;
+         return sb;
+@@ -144,19 +144,22 @@
+     /// </summary>
+     public byte[] Build(IReadOnlyList<ProsperoPs5MetaNode> inodes, long ndblock, IReadOnlyList<byte[]> blocks)
+     {
+-        int totalBlocks = 2 + blocks.Count;
++        int inodesPerBlock = BlockSize / 0xA8;
++        int inodeBlocks = (inodes.Count + inodesPerBlock - 1) / inodesPerBlock;
++        int totalBlocks = 1 + inodeBlocks + blocks.Count;
+         // round the number of blocks up so the metadata region is a whole number of blocks
+         byte[] outBuf = new byte[totalBlocks * BlockSize];
+ 
+-        BuildSuperblock(inodes.Count, ndblock).CopyTo(outBuf, 0);
++        BuildSuperblock(inodes.Count, ndblock, inodeBlocks).CopyTo(outBuf, 0);
+ 
+         // inode table at block 1
+         for (int i = 0; i < inodes.Count; i++)
+-            WriteInode(outBuf.AsSpan(BlockSize + i * 0xA8, 0xA8), inodes[i]);
++            WriteInode(outBuf.AsSpan((1 + i / inodesPerBlock) * BlockSize
++                + (i % inodesPerBlock) * 0xA8, 0xA8), inodes[i]);
+ 
+         // remaining blocks
+         for (int b = 0; b < blocks.Count; b++)
+-            blocks[b].CopyTo(outBuf, (2 + b) * BlockSize);
++            blocks[b].CopyTo(outBuf, (1 + inodeBlocks + b) * BlockSize);
+ 
+         return outBuf;
+     }
+--- a/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageReader.cs
++++ b/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageReader.cs
+@@ -168,10 +168,14 @@
+ 
+         // Parse the inode table (block 1). PS5 inner inode: Mode@0, Size@8, LogicalOffset@0x60, parent@0x6c.
+         long inodeTable = metaBase + blockSize;
++        int inodesPerBlock = blockSize / 0xA8;
++        long inodeBlocks = System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(sb[0x40..]);
++        if (inodesPerBlock == 0 || inodeBlocks < (inodeCount + inodesPerBlock - 1) / inodesPerBlock)
++            throw new InvalidOperationException("Inner inode table block count is too small.");
+         var nodes = new InnerInode[inodeCount];
+         for (int i = 0; i < inodeCount; i++)
+         {
+-            ReadOnlySpan<byte> e = mount.AsSpan((int)(inodeTable + i * 0xA8), 0xA8);
++            ReadOnlySpan<byte> e = mount.AsSpan((int)(inodeTable + (long)(i / inodesPerBlock) * blockSize + (i % inodesPerBlock) * 0xA8), 0xA8);
+             nodes[i] = new InnerInode
+             {
+                 Mode = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(e),

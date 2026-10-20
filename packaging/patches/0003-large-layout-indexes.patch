@@ -1,0 +1,56 @@
+--- a/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageAssembler.cs
++++ b/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageAssembler.cs
+@@ -242,6 +242,8 @@
+         var afidOffsets = new long[afidOrder.Count];
+         foreach (var f in afidOrder)
+         {
++            // Raw file starts align in both the logical mount and stored image.
++            cursor = RoundUp(cursor, BlockSize);
+             f.LogicalOffset = cursor;
+             afidOffsets[f.Afid] = cursor;
+             cursor += f.Data.Length;
+@@ -659,9 +661,7 @@
+         foreach (var f in afidOrder)
+         {
+             bool alignAfter = f.WholeBlockRaw;
+-            bool alignBefore =
+-                f.WholeBlockRaw ||
+-                (f.StoreRaw && pos % BLK != 0 && f.OnDiskData!.Length > BLK - pos % BLK);
++            bool alignBefore = f.StoreRaw;
+ 
+             var p = new ProsperoPs5InnerPayload
+             {
+--- a/src/LibProsperoPkg/PKG/ProsperoNapsLayoutBuilder.cs
++++ b/src/LibProsperoPkg/PKG/ProsperoNapsLayoutBuilder.cs
+@@ -426,23 +426,14 @@
+         var u2c = new List<NapsU2cEntry>(numGroups);
+         for (int g = 0; g < numGroups; g++)
+         {
+-            var entry = new byte[ProsperoNapsLayout.U2cStride];
+-            int baseG = first[8 * g];
+-            bool hasNext = 8 * g + 8 < numUBlocks;
+-            int nextBase = hasNext ? first[8 * g + 8] : 0;
+-
+-            // bytes[0..3] = 2nd-half deltas of group g (ublocks 8g+4 .. 8g+7) from baseG.
+-            for (int j = 0; j < 4; j++)
+-                entry[j] = ToU2cByte(Delta(8 * g + 4 + j, baseG), "delta");
+-
+-            entry[4] = ToU2cByte(nextBase, "next-base");        // base of the next group
+-            // bytes[5..6] are always zero.
+-
+-            // bytes[7..9] = the next group's first-three deltas (ublocks 8g+9 .. 8g+11) from nextBase.
+-            for (int j = 0; j < 3; j++)
+-                entry[7 + j] = hasNext ? ToU2cByte(Delta(8 * g + 9 + j, nextBase), "delta") : (byte)0;
+-
+-            u2c.Add(ProsperoNapsLayout.DecodeU2cEntry(entry));
++            int baseIndex = 8 * g < numUBlocks ? first[8 * g] : numCblockInfo - 1;
++            if ((uint)baseIndex > 0xFFFFFFu)
++                throw new NotSupportedException("NAPS u2c base exceeds its 24-bit field.");
++            var deltas = new byte[7];
++            for (int j = 0; j < deltas.Length; j++)
++                deltas[j] = ToU2cByte(Delta(8 * g + j + 1, baseIndex), "delta");
++            // Use the serializer's declared uint24-base + seven-delta model.
++            u2c.Add(new NapsU2cEntry((uint)baseIndex, deltas));
+         }
+ 
+         return u2c;

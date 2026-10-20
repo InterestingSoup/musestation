@@ -1,0 +1,222 @@
+--- a/src/LibProsperoPkg/PFS/ProsperoOuterPfsBuilder.cs	2026-10-19 15:35:38
++++ b/src/LibProsperoPkg/PFS/ProsperoOuterPfsBuilder.cs	2026-10-19 15:36:13
+@@ -203,7 +203,7 @@
+         {
+             ProsperoOuterFile f = files[i];
+             ArgumentNullException.ThrowIfNull(f);
+-            int blocks = Math.Max(1, (f.Data.Length + BlockSize - 1) / BlockSize);
++            int blocks = Math.Max(1, checked((int)(((long)f.Data.Length + BlockSize - 1) / BlockSize)));
+             fileFirstBlock[i] = dataBlockTotal;
+             fileBlockCount[i] = blocks;
+             dataBlockTotal += blocks;
+@@ -241,7 +241,10 @@
+         int urootDirentIndex = indirectRegionStart + indirectBlocksTotal; // after the indirect region
+         int totalBlocks = urootDirentIndex + 1;
+ 
+-        var image = new byte[(long)totalBlocks * BlockSize];
++        long imageLength = (long)totalBlocks * BlockSize;
++        if (imageLength > Array.MaxLength)
++            throw new InvalidDataException("Outer image exceeds the supported single-array capacity.");
++        var image = new byte[imageLength];
+ 
+         // ---- 2. Lay out file data blocks. ----
+         for (int i = 0; i < files.Count; i++)
+--- a/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageBuilder.cs	2026-10-19 15:35:38
++++ b/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageBuilder.cs	2026-10-19 15:36:13
+@@ -45,7 +45,7 @@
+     /// <summary>The per-file Kraken compression block size (256 KiB).</summary>
+     public const int CompressBlockSize = 0x40000;
+ 
+-    private static int AlignUp(int v, int a) => (v + a - 1) & ~(a - 1);
++    private static int AlignUp(int v, int a) => checked((int)(((long)v + a - 1) & ~((long)a - 1)));
+ 
+     /// <summary>
+     /// Kraken-compresses a payload into its concatenated on-disk bytes (256 KiB blocks). Returns the raw bytes
+@@ -106,6 +106,8 @@
+                 pos = AlignUp(pos, BlockSize);
+         }
+ 
++        if (pos > Array.MaxLength)
++            throw new InvalidDataException("Inner image exceeds the supported single-array capacity.");
+         byte[] img = new byte[pos];
+         foreach (var (offset, data, writer, length) in chunks)
+         {
+--- a/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageReader.cs	2026-10-19 15:35:38
++++ b/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageReader.cs	2026-10-19 15:38:02
+@@ -15,6 +15,7 @@
+ #nullable enable
+ using LibProsperoPkg.PFS.Compression.Oodle;
+ using LibProsperoPkg.PKG;
++using LibProsperoPkg.Util;
+ using System;
+ using System.Collections.Generic;
+ using System.Linq;
+@@ -70,7 +71,23 @@
+     /// </param>
+     public static ProsperoPs5InnerMountResult ReconstructMount(
+         ReadOnlySpan<byte> innerImage, ReadOnlySpan<byte> naps, long mountSize = 0)
++        => ReconstructMountCore(innerImage, null, innerImage.Length, naps, mountSize);
++
++    /// <summary>Reconstructs directly from the existing block-backed image view, without copying the
++    /// entire stored image. The caller retains ownership of the reader. Raw blocks read straight into
++    /// the final mount; compressed blocks use only their individual CblockInfo extent.</summary>
++    public static ProsperoPs5InnerMountResult ReconstructMount(
++        IMemoryReader innerImage, long innerLength, ReadOnlySpan<byte> naps, long mountSize = 0)
+     {
++        ArgumentNullException.ThrowIfNull(innerImage);
++        if (innerLength < 0) throw new ArgumentOutOfRangeException(nameof(innerLength));
++        return ReconstructMountCore(default, innerImage, innerLength, naps, mountSize);
++    }
++
++    private static ProsperoPs5InnerMountResult ReconstructMountCore(
++        ReadOnlySpan<byte> innerImage, IMemoryReader? innerReader, long innerLength,
++        ReadOnlySpan<byte> naps, long mountSize)
++    {
+         NapsLayoutDocument doc = ProsperoNapsLayout.Parse(naps);
+         IReadOnlyList<NapsCblockInfoEntry> cb = doc.CblockInfos;
+ 
+@@ -81,8 +98,8 @@
+             // are not block-aligned, so the largest block-aligned boundary is Ndblock*64K.
+             mountSize = rawOffsets.Where(v => v > 0 && (v & 0xFFFF) == 0).DefaultIfEmpty(0).Max();
+         }
+-        if (mountSize <= 0 || mountSize > int.MaxValue)
+-            throw new ArgumentOutOfRangeException(nameof(mountSize), mountSize, "Implausible inner mount size.");
++        if (mountSize <= 0 || mountSize > Array.MaxLength)
++            throw new ArgumentOutOfRangeException(nameof(mountSize), mountSize, "Inner mount size must fit a single .NET byte array (Array.MaxLength).");
+ 
+         // fidx = uncompressed file-offset boundaries. Only values inside the mount are real block
+         // boundaries; trailing sentinels (huge/typed) are ignored by the min-above-cursor lookup.
+@@ -122,7 +139,7 @@
+             int totalComp = (int)(nextRel - thisRel);
+             bool kraken = e.KdePredictor == 2;
+ 
+-            DecodeBlockInto(innerImage, onDisk, totalComp, evenComp, (int)uncompLen, kraken,
++            DecodeBlockInto(innerImage, innerReader, innerLength, onDisk, totalComp, evenComp, (int)uncompLen, kraken,
+                             mount, (int)uncompOff);
+ 
+             uncompOff += uncompLen;
+@@ -150,7 +167,7 @@
+     /// Parses the reconstructed inner mount's PS5 metadata (superblock + inode table + dirents) and returns
+     /// every regular file under <c>uroot</c> with its user-root-relative path, logical offset and size. The
+     /// file bytes are <c>mount[LogicalOffset .. LogicalOffset+Size]</c> (already decoded by
+-    /// <see cref="ReconstructMount"/>). The PS5 inner inode layout (LogicalOffset@0x60, parent@0x6c)
++    /// <c>ReconstructMount</c>). The PS5 inner inode layout (LogicalOffset@0x60, parent@0x6c)
+     /// differs from the layout <see cref="ProsperoPfsReader"/> reads, so this does not use it.
+     /// </summary>
+     public static IReadOnlyList<ProsperoPs5InnerFileEntry> ReadFileTree(byte[] mount, long metaBase)
+@@ -259,7 +276,8 @@
+     // the metadata region) are stored UN-shuffled on disk — decoding them yields the final plaintext
+     // directly (applying the de-interleave would corrupt them). A package with genuinely shuffled blocks
+     // would need a per-64K-sub-block de-interleave reintroduced here.
+-    private static void DecodeBlockInto(ReadOnlySpan<byte> inner, long onDisk, int totalComp, int evenComp,
++    private static void DecodeBlockInto(ReadOnlySpan<byte> inner, IMemoryReader? innerReader,
++        long innerLength, long onDisk, int totalComp, int evenComp,
+         int uncompLen, bool kraken, byte[] mount, int mountOff)
+     {
+         int room = mount.Length - mountOff;
+@@ -270,18 +288,28 @@
+         if (!kraken)
+         {
+             // Raw store: copy the uncompressed bytes straight through (bounded by the image length).
+-            if (onDisk >= 0 && onDisk < inner.Length)
++            if (onDisk >= 0 && onDisk < innerLength)
+             {
+-                int avail = (int)Math.Min(copyLen, inner.Length - onDisk);
+-                inner.Slice((int)onDisk, avail).CopyTo(mount.AsSpan(mountOff, avail));
++                int avail = (int)Math.Min(copyLen, innerLength - onDisk);
++                if (innerReader is null)
++                    inner.Slice((int)onDisk, avail).CopyTo(mount.AsSpan(mountOff, avail));
++                else
++                    innerReader.Read(onDisk, mount, mountOff, avail);
+             }
+             return;
+         }
+ 
+-        if (onDisk < 0 || onDisk + totalComp > inner.Length || totalComp <= 0)
++        if (onDisk < 0 || totalComp <= 0 || onDisk > innerLength - totalComp)
+             return;
+ 
+-        var src = inner.Slice((int)onDisk, totalComp);
++        byte[]? compressedBlock = null;
++        if (innerReader is not null)
++        {
++            compressedBlock = new byte[totalComp];
++            innerReader.Read(onDisk, compressedBlock, 0, totalComp);
++        }
++        ReadOnlySpan<byte> src = compressedBlock is not null
++            ? compressedBlock : inner.Slice((int)onDisk, totalComp);
+         int firstChunkComp = uncompLen > Chunk128K ? evenComp : 0;
+         var decoded = new byte[uncompLen];
+ 
+--- a/src/LibProsperoPkg/PKG/ProsperoFihBuilder.cs	2026-10-19 15:35:38
++++ b/src/LibProsperoPkg/PKG/ProsperoFihBuilder.cs	2026-10-19 15:37:50
+@@ -130,7 +130,10 @@
+         int metaLen = checked((int)pfsImageOffset);
+         int imageLen = checked((int)pfsImageSize);
+         int headerLen = ProsperoPkgLayout.FihHeaderRegionSize;
+-        byte[] mountImage = new byte[checked(headerLen + imageLen + metaLen)];
++        long mountLength = (long)headerLen + imageLen + metaLen;
++        if (mountLength > Array.MaxLength)
++            throw new InvalidDataException("Final mount image exceeds the supported single-array capacity.");
++        byte[] mountImage = new byte[mountLength];
+         Span<byte> image = mountImage.AsSpan(headerLen, imageLen);
+         Span<byte> metadata = mountImage.AsSpan(headerLen + imageLen, metaLen);
+         cntStream.Position = 0;
+--- a/src/LibProsperoPkg/PKG/ProsperoPackageExtractor.cs	2026-10-19 15:35:38
++++ b/src/LibProsperoPkg/PKG/ProsperoPackageExtractor.cs	2026-10-19 15:36:13
+@@ -434,8 +434,6 @@
+     {
+         long innerAvail = innerFile.size;
+         long mountSize = innerFile.compressed_size > innerFile.size ? innerFile.compressed_size : 0;
+-        byte[] innerBytes = new byte[innerAvail];
+-        innerOnDisk.Read(0, innerBytes, 0, (int)innerAvail);
+ 
+         long napsSize = napsFile.size;
+         byte[] napsBytes = new byte[napsSize];
+@@ -445,7 +443,7 @@
+         IReadOnlyList<ProsperoPs5InnerFileEntry> tree;
+         try
+         {
+-            mountResult = ProsperoPs5InnerImageReader.ReconstructMount(innerBytes, napsBytes, mountSize);
++            mountResult = ProsperoPs5InnerImageReader.ReconstructMount(innerOnDisk, innerAvail, napsBytes, mountSize);
+             tree = ProsperoPs5InnerImageReader.ReadFileTree(mountResult.Mount, mountResult.SuperblockOffset);
+         }
+         catch (Exception ex)
+@@ -525,6 +523,8 @@
+         int sbBlock = (int)(sbRel / BS);
+         if (sbBlock >= total) return null;
+ 
++        if (imageSize <= 0 || imageSize > Array.MaxLength)
++            throw new ProsperoExtractionException("Outer image exceeds the supported single-array capacity.");
+         byte[] image = new byte[imageSize];
+         pkgStream.Position = imageOffset;
+         ReadExactly(pkgStream, image, (int)imageSize);
+@@ -652,8 +652,6 @@
+         // is the (larger) logical mount size (Ndblock*64K). Read the stored bytes; mount to the logical size.
+         long innerAvail = innerFile.size;
+         long mountSize = innerFile.compressed_size > innerFile.size ? innerFile.compressed_size : 0;
+-        byte[] innerBytes = new byte[innerAvail];
+-        innerOnDisk.Read(0, innerBytes, 0, (int)innerAvail);
+ 
+         long napsSize = napsFile.size;
+         byte[] napsBytes = new byte[napsSize];
+@@ -663,7 +661,7 @@
+         IReadOnlyList<ProsperoPs5InnerFileEntry> tree;
+         try
+         {
+-            mountResult = ProsperoPs5InnerImageReader.ReconstructMount(innerBytes, napsBytes, mountSize);
++            mountResult = ProsperoPs5InnerImageReader.ReconstructMount(innerOnDisk, innerAvail, napsBytes, mountSize);
+             tree = ProsperoPs5InnerImageReader.ReadFileTree(mountResult.Mount, mountResult.SuperblockOffset);
+         }
+         catch (Exception ex)
+--- a/src/LibProsperoPkg/PKG/ProsperoPkgBuilder.cs	2026-10-19 15:35:38
++++ b/src/LibProsperoPkg/PKG/ProsperoPkgBuilder.cs	2026-10-19 15:37:50
+@@ -279,7 +279,7 @@
+             // Data-first inner: store the assembler image verbatim (inode size = on-disk length,
+             // SizeCompressed = logical mount size) alongside the generated naps.
+             byte[] pfsImageData = asmResult.Image;
+-            long innerImageAlignedSize = (pfsImageData.Length + BlockSize - 1) / BlockSize * BlockSize;
++            long innerImageAlignedSize = ((long)pfsImageData.Length + BlockSize - 1) / BlockSize * BlockSize;
+             ProsperoOuterFile[] outerFiles =
+             [
+                 new ProsperoOuterFile

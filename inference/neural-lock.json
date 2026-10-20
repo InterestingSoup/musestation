@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "checked_at": "2026-10-19",
+  "engine": {
+    "repository": "https://github.com/ggml-org/llama.cpp",
+    "revision": "04f7226a2c12c7f382c545a6db5a034266aa53cb",
+    "library": "mtmd",
+    "license": "MIT"
+  },
+  "source_model": {
+    "repository": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+    "revision": "5d83992436eae1d760afd27aff78a71d676296fc",
+    "license": "Apache-2.0",
+    "license_source": {
+      "url": "https://raw.githubusercontent.com/QwenLM/Qwen3-TTS/022e286b98fbec7e1e916cb940cdf532cd9f488e/LICENSE",
+      "revision": "022e286b98fbec7e1e916cb940cdf532cd9f488e"
+    }
+  },
+  "voice": "Base model default, unconditioned speaker; no reference-person voice cloned",
+  "models": [
+    {
+      "name": "Qwen3-TTS-12Hz-0.6B-Base.Q4_K_M.gguf",
+      "repo": "mradermacher/Qwen3-TTS-12Hz-0.6B-Base-GGUF",
+      "revision": "0762b31e9cd99274d49dca4e895bd81863134f08",
+      "sha256": "2dec66bcf1595f48a6dfb64c14e7e8437315e1606eba03094ed7372e60a4b9af",
+      "bytes": 361023168,
+      "license": "Apache-2.0",
+      "role": "tts_backbone"
+    },
+    {
+      "name": "Qwen3-TTS-12Hz-0.6B-Base.mmproj-Q8_0.gguf",
+      "repo": "mradermacher/Qwen3-TTS-12Hz-0.6B-Base-GGUF",
+      "revision": "0762b31e9cd99274d49dca4e895bd81863134f08",
+      "sha256": "202c1fbf3a0f00b7586ca45b8328d696cc6cd980c3798979eaa4fefe8efd8320",
+      "bytes": 401129632,
+      "license": "Apache-2.0",
+      "role": "tts_projector"
+    }
+  ],
+  "reference_implementation": {
+    "repository": "https://github.com/mansanitizer/psllama",
+    "revision": "d079717184d8153793789f13ed157c1c70390ba0",
+    "path": "app/audio_service.cpp",
+    "license": "GPL-3.0-or-later"
+  },
+  "notices": {
+    "Qwen3-TTS-LICENSE": {
+      "bytes": 11343,
+      "sha256": "a44a6081c73ad75f0255bb2bb5cab74ef1829565a895a24e53a4f11290ab7655"
+    },
+    "Qwen3-TTS-BASE-MODEL-CARD.md": {
+      "bytes": 3640,
+      "sha256": "181187b6057906bd960bc7f938d0b7a16652509776a0d52c4885b4ae5ccda0ea"
+    },
+    "Qwen3-TTS-GGUF-MODEL-CARD.md": {
+      "bytes": 4168,
+      "sha256": "39b1cc020d5c59b8a504015703a48569504e4e6b486f815931e0d5a4e4df9127"
+    }
+  }
+}

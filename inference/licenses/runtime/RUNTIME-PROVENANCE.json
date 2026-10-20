@@ -1,0 +1,124 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "file": "ps5-payload-sdk-v0.42-source.tar.gz",
+      "url": "https://codeload.github.com/ps5-payload-dev/sdk/tar.gz/4eb701204fc3f8d31e84cf8ca272974e2be9c867",
+      "bytes": 3381771,
+      "sha256": "fc9f5974e540c4d4af912f0661cf44075651e67a4d0070a6e8ad44e01bee8ac2"
+    },
+    {
+      "file": "zlib-1.3.1.tar.gz",
+      "url": "https://zlib.net/fossils/zlib-1.3.1.tar.gz",
+      "bytes": 1512791,
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
+    },
+    {
+      "file": "zlib_1.3.1-1_patch.zip",
+      "url": "https://wrapdb.mesonbuild.com/v2/zlib_1.3.1-1/get_patch",
+      "bytes": 2403,
+      "sha256": "e79b98eb24a75392009cec6f99ca5cdca9881ff20bfa174e8b8926d5c7a47095"
+    },
+    {
+      "file": "llvm-project-18.1.8.src.tar.xz",
+      "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/llvm-project-18.1.8.src.tar.xz",
+      "bytes": 132067260,
+      "sha256": "0b58557a6d32ceee97c8d533a59b9212d87e0fc4d2833924eb6c611247db2f2a"
+    },
+    {
+      "file": "llvm-toolchain-18_18.1.3.orig.tar.xz",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-18/llvm-toolchain-18_18.1.3.orig.tar.xz",
+      "bytes": 155361864,
+      "sha256": "ddf2448d682adbfb4a57aa7ac45219cc00aef6ae9ce2fabd8598fa1cc97d26c4"
+    },
+    {
+      "file": "llvm-toolchain-18_18.1.3-1ubuntu1.debian.tar.xz",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-18/llvm-toolchain-18_18.1.3-1ubuntu1.debian.tar.xz",
+      "bytes": 162708,
+      "sha256": "7063d88002765b53e8efd42e75d4027f873d78c0c4ec51817b92e17e1c327a08"
+    },
+    {
+      "file": "llvm-toolchain-18_18.1.3-1ubuntu1.dsc",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-18/llvm-toolchain-18_18.1.3-1ubuntu1.dsc",
+      "bytes": 8420,
+      "sha256": "1775aeccdacc7c5c016b1ddbb2e2ebe5ea1fd308b48e6f0511d256922fdf2537"
+    }
+  ],
+  "sdk_revision": "b83202be73e930050e00de0f1b4d9ec46c0391bf",
+  "sdk_base_source_revision": "4eb701204fc3f8d31e84cf8ca272974e2be9c867",
+  "sdk_base_release_sha256": "8cfbc7cd5811e719eb4f0c47eea668d3dc7b40bc8ab11c4a5031d40c23ec02da",
+  "sdk_cpp_source": "LLVM 18.1.8, as specified by the pinned SDK libcxx.sh; the supplied SDK release archives were linked, not rebuilt here",
+  "sdk_cpp_archives": [
+    {
+      "file": "libc++.a",
+      "bytes": 2304096,
+      "sha256": "b1480e6edcb7cffba5ea999cb13da0d40b0def4c215ead442649bba71d32414f"
+    },
+    {
+      "file": "libc++abi.a",
+      "bytes": 692520,
+      "sha256": "fe074aba4cfd2d81025d05c248d4468a954b5b8e2eaef82c8da99d36c4cbbcc5"
+    },
+    {
+      "file": "libunwind.a",
+      "bytes": 130658,
+      "sha256": "d5942a5ffb6585952855160d9230f6e597df1851e5f3dda1b338e08e24b2f2d0"
+    }
+  ],
+  "compiler": "Ubuntu clang version 18.1.3 (1ubuntu1)",
+  "compiler_rt_package": "libclang-rt-18-dev:amd64\t1:18.1.3-1ubuntu1",
+  "compiler_rt_builtins": {
+    "file": "libclang_rt.builtins-x86_64.a",
+    "bytes": 261892,
+    "sha256": "52f850cf79b9cda0b00b78aa2fed86bae6947e596cc7cafb52dba4fd88acb07d"
+  },
+  "radv_provenance": "RADV for the PlayStation 5, built by tools/build-radv.sh release\nfork: /work/inference/vendor/gpu/PS5_Mesa\nrevision: b86c6e3979cfb580b32ffb27a90c6a39cb83fb2c\nassertions: off\nsdk: b83202be73e930050e00de0f1b4d9ec46c0391bf\narchive sha256: 83909cdb6497bbe891d23507986ee3ebc5699f8db9257c9174a5cfacbbaa9f2a\n",
+  "notices": [
+    {
+      "file": "Apache-2.0.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "file": "LGPL-2.1-optional-upstream-broker.txt",
+      "bytes": 26530,
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+    },
+    {
+      "file": "LLVM-18.1.8-LICENSE.txt",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "file": "PS5_Vulkan-NOTICE.md",
+      "bytes": 7410,
+      "sha256": "bac9915c4c6e3c08f2c59e5ff7fb13108bd3bb9d0a2288654e14b91788f30ccd"
+    },
+    {
+      "file": "Ubuntu-llvm-toolchain-18-COPYRIGHT.txt",
+      "bytes": 6897,
+      "sha256": "dc2a171c75ca72818f7f4312602f27cb0e4bf6d010a86e7073a3797cb228ddff"
+    },
+    {
+      "file": "libcxx-18.1.8-LICENSE.txt",
+      "bytes": 16703,
+      "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    {
+      "file": "libcxxabi-18.1.8-LICENSE.txt",
+      "bytes": 16706,
+      "sha256": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+    },
+    {
+      "file": "libunwind-18.1.8-LICENSE.txt",
+      "bytes": 16706,
+      "sha256": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+    },
+    {
+      "file": "zlib-1.3.1-README.txt",
+      "bytes": 5317,
+      "sha256": "d106dcdb2a0b3087cb3a2380b9f00a0bbadc7eb835cd80408f94a2d78d69727d"
+    }
+  ],
+  "rebuild_note": "These sources and upstream patches are retained outside .deps. Fresh archive builds still fetch pinned Git metadata and tool dependencies; this is not an offline hermetic-build claim."
+}

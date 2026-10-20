@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/drakmor/LibProsperoPkg",
+  "revision": "be79990357efa6c1a873ae7443dec6e640172914",
+  "checked_at": "2026-10-19",
+  "license": "GPL-3.0-or-later root license; some files carry AGPL-3.0-or-later notices",
+  "sdk_image": "mcr.microsoft.com/dotnet/sdk:10.0@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa",
+  "runtime_image": "mcr.microsoft.com/dotnet/runtime:10.0@sha256:939555726cae4c916d212323ac3c0792996dcac2614f00e82cc40fcf059e1af3",
+  "local_patches": [
+    "patches/0001-store-inner-files-raw.patch",
+    "patches/0002-multiple-inode-blocks.patch",
+    "patches/0003-large-layout-indexes.patch",
+    "patches/0004-naps-padding-count.patch",
+    "patches/0005-outer-double-indirect.patch",
+    "patches/0006-no-inner-image-clone.patch",
+    "patches/0007-bounded-builder-memory.patch",
+    "patches/0008-bounded-mount-reconstruction.patch"
+  ]
+}

@@ -1,0 +1,59 @@
+--- a/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageAssembler.cs
++++ b/src/LibProsperoPkg/PFS/ProsperoPs5InnerImageAssembler.cs
+@@ -245,20 +245,11 @@
+             f.LogicalOffset = cursor;
+             afidOffsets[f.Afid] = cursor;
+             cursor += f.Data.Length;
+-            // Keystone and executable modules are stored raw; every other file is Kraken-compressed and
+-            // packed unless the compressed result does not save at least the store threshold. Compress once
+-            // and reuse it so the data-region geometry and the final image share a single compression pass.
+-            if (IsKeystone(f.FullPath) || IsExecutableModule(f.Data))
+-            {
+-                f.StoreRaw = true;
+-                f.OnDiskData = f.Data;
+-            }
+-            else
+-            {
+-                byte[] comp = ProsperoPs5InnerImageBuilder.CompressPayload(f.Data, storeRaw: false);
+-                f.StoreRaw = comp.Length >= f.Data.Length; // CompressPayload returns raw when it does not help
+-                f.OnDiskData = f.StoreRaw ? f.Data : comp;
+-            }
++            // Muse: all inner files use the existing PS5 raw-block representation.
++            // This bounds memory and avoids minutes of managed Kraken processing.
++            // Executable/data flags and full image/hash validation are unchanged.
++            f.StoreRaw = true;
++            f.OnDiskData = f.Data;
+             f.SceSys = f.FullPath.StartsWith("/sce_sys/", StringComparison.Ordinal);
+             f.WholeBlockRaw = IsKeystone(f.FullPath);
+         }
+@@ -696,7 +687,7 @@
+         pos += blockInfo.Length;
+         payloads.Add(new ProsperoPs5InnerPayload { Data = blockInfo, StoreRaw = true, BlockAligned = true });
+ 
+-        compressedMeta = ProsperoPs5InnerImageBuilder.CompressPayload(metaPlain, storeRaw: false, out var metaPf);
++        compressedMeta = ProsperoPs5InnerImageBuilder.CompressPayload(metaPlain, storeRaw: true, out var metaPf);
+         // Capture the per-256KiB-block chunk table so the naps generator reuses it (no second Kraken pass).
+         metaBlocks = metaPf is null
+             ? Array.Empty<ProsperoInnerMetaBlockChunk>()
+--- a/src/LibProsperoPkg/PKG/ProsperoNwonlyNapsGenerator.cs
++++ b/src/LibProsperoPkg/PKG/ProsperoNwonlyNapsGenerator.cs
+@@ -103,7 +103,7 @@
+         if (metaChunks.Count == 0)
+         {
+             var metaFile = ProsperoCompressedPfsFile.Parse(
+-                ProsperoCompressedPfsImage.Pack(result.MetadataPlaintext, 7, (int)Ublock256K));
++                ProsperoCompressedPfsImage.PackStored(result.MetadataPlaintext, 7, (int)Ublock256K));
+             metaChunks = metaFile.Blocks.Select(b => new ProsperoInnerMetaBlockChunk(
+                 b.CompressedSize, b.UncompressedSize, b.IsMultiChunk, b.FirstChunkCompressedSize)).ToList();
+         }
+--- a/src/LibProsperoPkg/PKG/ProsperoNapsMeta.cs
++++ b/src/LibProsperoPkg/PKG/ProsperoNapsMeta.cs
+@@ -504,7 +504,7 @@
+         if (metaChunks.Count == 0 && inner.MetadataPlaintext.Length > 0)
+         {
+             var mf = LibProsperoPkg.PFS.Compression.ProsperoCompressedPfsFile.Parse(
+-                LibProsperoPkg.PFS.Compression.ProsperoCompressedPfsImage.Pack(
++                LibProsperoPkg.PFS.Compression.ProsperoCompressedPfsImage.PackStored(
+                     inner.MetadataPlaintext, 7, (int)Meta18UBlock));
+             metaChunks = mf.Blocks.Select(b => new LibProsperoPkg.PFS.ProsperoInnerMetaBlockChunk(
+                 b.CompressedSize, b.UncompressedSize, b.IsMultiChunk, b.FirstChunkCompressedSize)).ToList();

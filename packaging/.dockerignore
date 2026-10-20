@@ -1,0 +1,8 @@
+**/.git
+**/bin
+**/obj
+vendor/LibProsperoPkg/src/HomebrewTest
+vendor/LibProsperoPkg/src/LibProsperoPkg.Tests
+logs
+
+source-deps

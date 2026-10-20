@@ -1,0 +1,84 @@
+name: musestation
+services:
+  toolchain:
+    build: .
+    image: ps5-muse-toolchain
+    working_dir: /work
+    volumes:
+      - .:/work
+    command: ["make", "all", "test"]
+    profiles: ["build"]
+
+  relay:
+    build: ./relay
+    image: musestation-relay:local
+    profiles: ["relay"]
+    user: "${MUSE_RUNTIME_UID:-1000}:${MUSE_RUNTIME_GID:-1000}"
+    command: ["python3", "-m", "relay.server"]
+    ports:
+      - "${MUSE_RELAY_LAN_BIND:-127.0.0.1}:${MUSE_RELAY_PORT:-8860}:8860"
+      - "${MUSE_PROVIDER_HOST_BIND:-127.0.0.1}:${MUSE_PROVIDER_PORT:-8861}:8861"
+    environment:
+      MUSE_RELAY_DATA_DIR: ${MUSE_RUNTIME_ROOT:?Set an absolute host runtime directory}/data
+      MUSE_EXCHANGE_DIR: ${MUSE_RUNTIME_ROOT}/exchange
+      MUSE_RELAY_BIND: 0.0.0.0
+      MUSE_RELAY_PORT: 8860
+      MUSE_PROVIDER_BIND: 0.0.0.0
+      MUSE_PROVIDER_PORT: 8861
+      MUSE_PROVIDER_TOKEN_FILE: /run/secrets/muse-provider-token
+      MUSE_CONSOLE_TOKEN_FILE: /run/secrets/muse-console-token
+      MUSE_EXCHANGE_POLL_SECONDS: ${MUSE_EXCHANGE_POLL_SECONDS:-2}
+    volumes:
+      - ${MUSE_RUNTIME_ROOT}/data:${MUSE_RUNTIME_ROOT}/data
+      - ${MUSE_RUNTIME_ROOT}/exchange:${MUSE_RUNTIME_ROOT}/exchange
+      - ${MUSE_PROVIDER_TOKEN_FILE:?Set the private provider token file}:/run/secrets/muse-provider-token:ro
+      - ${MUSE_CONSOLE_TOKEN_FILE:?Set the separate private console token file}:/run/secrets/muse-console-token:ro
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8860/health',timeout=3))['state']=='ready'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    labels:
+      homepage.group: ${MUSE_DASHBOARD_GROUP:-Personal}
+      homepage.name: ${MUSE_DASHBOARD_NAME:-MuseStation}
+      homepage.description: ${MUSE_DASHBOARD_DESCRIPTION:-PS5 build server and job relay}
+      homepage.icon: ${MUSE_DASHBOARD_ICON:-mdi-sony-playstation}
+      homepage.href: ${MUSE_DASHBOARD_URL:?Set the dashboard URL}
+      homepage.siteMonitor: ${MUSE_DASHBOARD_HEALTH_URL:?Set the health URL}
+
+  builder:
+    image: musestation-relay:local
+    profiles: ["relay"]
+    user: "${MUSE_RUNTIME_UID:-1000}:${MUSE_RUNTIME_GID:-1000}"
+    group_add: ["${MUSE_DOCKER_GID:?Set the host Docker socket group ID}"]
+    command: ["python3", "-m", "relay.worker"]
+    environment:
+      MUSE_RELAY_DATA_DIR: ${MUSE_RUNTIME_ROOT}/data
+      MUSE_EXCHANGE_DIR: ${MUSE_RUNTIME_ROOT}/exchange
+      MUSE_RELAY_NATIVE_KIT: ${MUSE_RELAY_NATIVE_KIT:?Set the absolute verified native kit directory}
+      MUSE_BUILD_IMAGE: ${MUSE_BUILD_IMAGE:?Set the verified compiler image ID}
+      MUSE_PACKAGE_IMAGE: ${MUSE_PACKAGE_IMAGE:?Set the verified packager image ID}
+    volumes:
+      - ${MUSE_RUNTIME_ROOT}/data:${MUSE_RUNTIME_ROOT}/data
+      - ${MUSE_RUNTIME_ROOT}/exchange:${MUSE_RUNTIME_ROOT}/exchange
+      - ${MUSE_RELAY_NATIVE_KIT}:${MUSE_RELAY_NATIVE_KIT}:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    depends_on:
+      relay:
+        condition: service_healthy
+    restart: unless-stopped

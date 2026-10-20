@@ -19,5 +19,7 @@ Cloudflare DNS access requires owner sign-in. The DNS record and GitHub
 certificate/HTTPS enforcement are still pending; this is not a claim that the
 custom hostname is live. See [hosting instructions](HOSTING.md).
 
-Only website files and the public project overview were published. Native
-packages, models, private credentials and development server data are excluded.
+The initial publication contained only the website and project overview. The
+repository now also contains the app, Docker services, build tools and project
+documentation; the Pages workflow still uploads only `site/`. Native packages,
+models, private credentials and development server data are excluded from Git.

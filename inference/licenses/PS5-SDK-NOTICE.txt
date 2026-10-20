@@ -1,0 +1,5 @@
+Native locale compatibility derives from ps5-payload-sdk no-locale.c at f5d40f02770e9b0001dd9e18056eca70b3da8b40.
+Copyright (C) 2024 John Törnblom. GPL-3.0-or-later.
+Muse modifications are documented in inference/ps5_locale.c.
+The bounded multibyte conversion files derive from the SDK/Musl and carry the separate included MIT license.
+Source: https://github.com/ps5-payload-dev/sdk/tree/f5d40f02770e9b0001dd9e18056eca70b3da8b40/libc

@@ -1,3 +1,48 @@
+# Private deployment state. Commit the template, never live configuration.
+.env
+.env.*
+!.env.example
+config.local.json
+secrets/
+/runtime/
+*.pem
+*.key
+
+# Downloaded dependencies and model weights; lock files/fetchers are tracked.
+/vendor/*
+!/vendor/native-ui/
+/vendor/native-ui/docs/media/
+/inference/vendor/
+/assets/inference/
+/packaging/vendor/
+/packaging/source-deps/
+*.gguf
+*.part
+
+# Build products. Keep relay/build/: it contains the native build recipe.
+/build/
+/dist/
+/inference/build/
+bin/
+obj/
+*.pkg
+*.elf
+*.o
+*.a
+*.so
+*.sprx
+/packaging/package-*.json
+/packaging/graphics-source-check.json
+/packaging/inode-review.txt
+
+# Local evidence/caches and raw research downloads.
+/logs/
+*.log
+/docs/*-upstream.*
+/docs/*-commit.json
+/docs/psllama-tree.json
+__pycache__/
+*.pyc
 .DS_Store
 .preview/
 node_modules/
