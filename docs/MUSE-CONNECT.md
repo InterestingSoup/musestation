@@ -136,6 +136,49 @@ It is not a live authentication indicator. A successful provider response proves
 network/authentication reachability; a real request/plan round trip must still
 be observed before claiming the Muse integration works.
 
+## Muse-side connection report
+
+On 2026-10-19 (America/Los_Angeles), the owner relayed the result of a request made
+from their actual Muse workspace: authenticated `GET /provider/outbox?after=0`
+returned HTTP 200 with `{"events":[],"next_after":0,"schema":1}`. They also reported
+saving a reusable connector helper in Muse.
+
+This establishes operator-reported Muse-to-relay connectivity through the named
+HTTPS tunnel, beyond the earlier Mac-side probes. The helper implementation,
+continuous polling, plan/source submissions and PS5 operation have not yet been
+verified. The relay health flags remain hardcoded false; they are not live
+connection indicators and were not changed for this report.
+
+## Next test: request to plan
+
+An operator-created, **host-simulated plan-only request** now asks Muse to describe
+a tiny counter app. It is visibly labeled as a test with no PS5 attached. The
+console protocol's `source:"on_console"` value is used by the host fixture; it
+does not assert physical-console execution.
+
+The request was accepted with HTTP 200, its console-side plan read returned
+202 `planning`, and one matching `request` event was verified through the public
+provider API. There were **zero build jobs before and after submission**, and the
+title ledger was unchanged. The request ID and verification records stay in
+private runtime handoff files rather than being hardcoded into these instructions.
+
+For this test, Muse should:
+
+1. Read the provider outbox and locate the exact test request ID supplied by the
+   operator. Do not treat unrelated requests as part of the test.
+2. Write a 2–4 sentence plan from that request.
+3. Submit `POST /provider/plans` with
+   `{"schema":1,"type":"plan","request_id":"<actual-request-id>","text":"<plan>"}`.
+   Use the normal provider authorization and User-Agent, plus
+   `Content-Type: application/json`.
+4. Report the receipt and plan text, then stop. Do not submit source or approve
+   anything. Persist the event cursor only after successful handling.
+
+The operator then reads `GET /plan/<actual-request-id>` on the private console
+listener and verifies HTTP 200, matching text and a relay-derived revision.
+That final read is still pending. This test does not allocate a title, compile,
+install, or bypass the controller/inventory gates.
+
 ## Named endpoint verification
 
 Checked from the development Mac over

@@ -9,7 +9,9 @@ Opti3 is not enrolled as a Muse gadget. The SDK/Bluetooth companion under
 
 The implemented transport can receive files from a future shared-storage connector
 or accept authenticated provider pushes. It does not call an undocumented Muse
-cloud endpoint. Until that connector exists, requests correctly wait for Muse.
+cloud endpoint. The owner has confirmed a successful authenticated outbox read
+from Muse; [plan/source exchange testing](MUSE-CONNECT.md#next-test-request-to-plan)
+is the next step. Requests wait until the connector supplies their plans.
 Provider access can return a plan/source and read results; it cannot approve a plan.
 
 ```mermaid

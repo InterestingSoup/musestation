@@ -61,7 +61,7 @@ progress are illustrative. The connection wizard is proposed, not implemented.
 |---|---|
 | **Native app + bundled models** | Docker compilation and complete package extraction/hash checks passed. |
 | **Docker relay + compiler worker** | 81 relay tests passed; a fixture request completed the real compile, package and download path. |
-| **Provider connection** | Authenticated HTTPS reachability verified. A real Muse request/plan/source round trip is still pending. |
+| **Provider connection** | The owner confirmed an authenticated outbox read from Muse through the public HTTPS route. Request/plan/source exchange is the next verification step. |
 | **PS5 hardware** | Installation, GPU inference, microphone capture, speech playback and generated-app launch remain unverified. |
 
 The **01.005.000 development candidate** is a hardware-test candidate, not a
@@ -85,8 +85,9 @@ Qwen2.5-Coder 1.5B are bundled. No first-run model download is required. Hybrid
 skips loading the coding model. GPU inference and CPU recovery are integrated;
 console performance remains to be measured.
 
-**Hybrid still requires a real Muse connector.** The folder/provider API is
-implemented, but starting the relay alone does not connect Muse or generate apps.
+**Hybrid requires a configured Muse connector.** The owner's Muse workspace has
+successfully read the authenticated provider outbox. The full plan/source workflow
+still needs verification; starting the relay alone does not generate apps.
 No QR, device-code or account-login flow is implemented. Other AI providers are
 not connected in this version.
 

@@ -14,8 +14,10 @@ containers. See [repository layout and update procedure](REPOSITORY.md).
 Current Opti3 deployment: relay healthy, worker heartbeat present, and Homepage
 entry discovered. Evidence is in [BUILD-REPORT-INVENTORY.md](BUILD-REPORT-INVENTORY.md).
 The live data directory is `runtime/data`, exchange is `runtime/exchange`, and
-trusted kit is `runtime/native-kit-v1` under the project root. No Muse connector
-or production job exists yet.
+trusted kit is `runtime/native-kit-v1` under the project root. The owner has
+confirmed an authenticated outbox read from Muse. A host-simulated, plan-only
+request is queued for the next test; no build job has been created or approved.
+See [connection and test status](MUSE-CONNECT.md#muse-side-connection-report).
 The inventory requirement documented here is implemented in 01.005.000. Use the
 release report and deployment record for exact build and service evidence.
 

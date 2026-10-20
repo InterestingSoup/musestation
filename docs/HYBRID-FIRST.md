@@ -16,9 +16,11 @@ remains behind owner verification and conservative exact-phrase checks; physical
 controls remain available. Typing works with no microphone module configured.
 
 The relay saves requests, approvals, source, compiled packages and diagnostic
-exports. Its folder and authenticated provider API support a future Muse connector.
-An IP address is a relay configuration, not an account login. No live Muse account
-or storage connection has been established. Until the connector submits a plan,
+exports. Its folder and authenticated provider API support a Muse connector.
+The owner has reported a successful authenticated outbox read from the actual Muse
+workspace; see [connection evidence](MUSE-CONNECT.md#muse-side-connection-report).
+An IP address is a relay configuration, not an account login. Request/plan/source
+exchange still needs verification. Until the connector submits a plan,
 MuseStation displays “Waiting for Muse.”
 
 The proposed direct SDK route is optional research, not a deployment prerequisite.
