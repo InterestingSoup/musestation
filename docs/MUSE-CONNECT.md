@@ -193,6 +193,16 @@ then confirms that no job or title allocation was created. Stop at this boundary
 the source/build exchange is a separate test, and physical-console display,
 approval and installation still require hardware validation.
 
+## Source and compilation test
+
+The owner subsequently authorized a single host-only source/compile test.
+A separate relay store now holds a simulated approval for a copy of the accepted
+counter plan. The existing provider hostname temporarily serves that test store;
+the normal console API and its unapproved plan remain separate. The test worker
+is ready, and actual Muse source is pending.
+See [source-test instructions and isolation details](MUSE-SOURCE-TEST.md), including
+the separate outbox cursor and restoration procedure.
+
 ## Named endpoint verification
 
 Checked from the development Mac over
