@@ -1,0 +1,23 @@
+Hey everyone — I'm building **MuseStation**, an open-source homebrew creation studio for PS5, with Muse as the first development partner.
+
+The idea: sit on the couch, say or type “make me a falling-block game,” review Muse's plan, then press Cross to approve. A Docker relay on your own server compiles the native app, and MuseStation checks the package before the install/launch step.
+
+What I'm working toward:
+• Local transcription and speech on the PS5.
+• Muse handling planning and code through an authenticated relay.
+• Controller approval before a build, plus automatic diagnostic logs.
+• An experimental Local lab using a bundled small model for Lua apps that run inside MuseStation.
+
+**Where it stands:** the native app compiles, its model-bundled package passes extraction/hash checks, and the relay has 81 passing tests plus a fixture-driven compile-to-download test. The HTTPS provider endpoint is reachable and authenticated.
+
+**Still ahead:** a real Muse request-to-build integration and testing on an actual PS5. I don't have the console in hand yet. GPU inference, mic capture, installation and launch are not hardware-verified. The images are UI concepts, and the proposed connection wizard isn't implemented. No public binary release yet.
+
+I'd love feedback from Muse gadget builders on the smoothest connector/setup experience, and from PS5 homebrew developers with first-hand payload compatibility results for Slim firmware 12.40.
+
+Source, architecture and build evidence:
+https://github.com/moiz-qureshi/musestation
+
+Mockup gallery:
+https://github.com/moiz-qureshi/musestation/tree/main/docs/mockups
+
+What small app would you want to make from your couch?

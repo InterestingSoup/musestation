@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" role="img" aria-labelledby="title desc">
+<title id="title">MuseStation — Make something worth playing.</title>
+<desc id="desc">Project cover showing an illustrative plan review. Experimental PS5 homebrew; hardware testing is pending. Not a console capture.</desc>
+<defs><radialGradient id="glow"><stop stop-color="#364724"/><stop offset="1" stop-color="#101510"/></radialGradient><pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#788b65" stroke-opacity=".08"/></pattern></defs>
+<rect x="0" y="0" width="1600" height="760" rx="0" fill="#101510"/>
+<ellipse cx="1410" cy="150" rx="710" ry="760" fill="url(#glow)"/>
+<rect x="0" y="0" width="1600" height="760" rx="0" fill="url(#grid)"/>
+<g transform="translate(64 55) scale(0.71875)"><rect width="64" height="64" rx="15" fill="#d1f37a"/><path d="M13 45V20h6l13 15 13-15h6v25h-7V31L32 44 20 31v14z" fill="#18240e"/></g>
+<text x="126" y="88" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="600" letter-spacing="-1" text-anchor="start">MuseStation</text>
+<rect x="64" y="151" width="246" height="36" rx="18" fill="#27341e" stroke="#4d6237"/>
+<text x="81" y="175" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="500" letter-spacing="0.6" text-anchor="start">EXPERIMENTAL HOMEBREW</text>
+<text x="59" y="280" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="86" font-weight="600" letter-spacing="-4" text-anchor="start">Make something</text>
+<text x="59" y="378" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="86" font-weight="600" letter-spacing="-4" text-anchor="start">worth playing.</text>
+<text x="65" y="446" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="400" letter-spacing="0" text-anchor="start">A creation studio for your PS5.</text>
+<text x="65" y="486" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="400" letter-spacing="0" text-anchor="start">Your idea. Muse&#x27;s plan. Your approval.</text>
+<text x="64" y="581" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" letter-spacing="1.6" text-anchor="start">PS5 APP</text>
+<text x="198" y="581" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" letter-spacing="0" text-anchor="start">+</text>
+<text x="239" y="581" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" letter-spacing="1.6" text-anchor="start">YOUR DOCKER RELAY</text>
+<text x="491" y="581" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" letter-spacing="0" text-anchor="start">+</text>
+<text x="531" y="581" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" letter-spacing="1.6" text-anchor="start">MUSE</text>
+<text x="65" y="626" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" letter-spacing="0" text-anchor="start">Source available. Console testing ahead.</text>
+<rect x="927" y="172" width="612" height="458" rx="24" fill="#0c130d" stroke="#587442"/>
+<rect x="944" y="189" width="578" height="424" rx="16" fill="#192119" stroke="#354332"/>
+<text x="975" y="228" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="600" letter-spacing="1.8" text-anchor="start">YOUR NEXT CREATION</text>
+<rect x="1398" y="204" width="94" height="36" rx="18" fill="#27341e" stroke="#4d6237"/>
+<text x="1415" y="228" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="500" letter-spacing="0.6" text-anchor="start">MUSE</text>
+<text x="975" y="281" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="500" letter-spacing="-0.6" text-anchor="start">“Make a falling-block game.”</text>
+<path d="M975 308L1490 308" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="975" y="352" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="600" letter-spacing="-0.7" text-anchor="start">Here&#x27;s the plan.</text>
+<text x="975" y="393" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" letter-spacing="0" text-anchor="start">Move. Rotate. Clear a row.</text>
+<text x="975" y="423" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="400" letter-spacing="0" text-anchor="start">A small arcade idea, made yours.</text>
+<rect x="1320" y="447" width="26" height="26" rx="5" fill="#d1f37a"/>
+<rect x="1351" y="447" width="26" height="26" rx="5" fill="#d1f37a"/>
+<rect x="1382" y="447" width="26" height="26" rx="5" fill="#d1f37a"/>
+<rect x="1382" y="416" width="26" height="26" rx="5" fill="#d1f37a"/>
+<rect x="1413" y="447" width="26" height="26" rx="5" fill="#d1f37a"/>
+<rect x="1444" y="447" width="26" height="26" rx="5" fill="#a7c5e3"/>
+<rect x="1413" y="416" width="26" height="26" rx="5" fill="#a7c5e3"/>
+<rect x="1444" y="416" width="26" height="26" rx="5" fill="#a7c5e3"/>
+<rect x="1351" y="354" width="26" height="26" rx="5" fill="#a7c5e3"/>
+<rect x="1382" y="354" width="26" height="26" rx="5" fill="#a7c5e3"/>
+<rect x="1413" y="354" width="26" height="26" rx="5" fill="#e1bda4"/>
+<rect x="1382" y="385" width="26" height="26" rx="5" fill="#e1bda4"/>
+<rect x="1320" y="416" width="26" height="26" rx="5" fill="#e1bda4"/>
+<rect x="1320" y="385" width="26" height="26" rx="5" fill="#e1bda4"/>
+<rect x="975" y="471" width="240" height="58" rx="14" fill="#d1f37a"/>
+<text x="999" y="508" fill="#18240e" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="600" letter-spacing="0" text-anchor="start">×  Approve build</text>
+<text x="975" y="571" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" letter-spacing="0" text-anchor="start">You approve. Then it builds.</text>
+<text x="1490" y="571" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="400" letter-spacing="1" text-anchor="end">01 / REVIEW</text>
+<path d="M64 695L1536 695" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="64" y="730" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="500" letter-spacing="1.5" text-anchor="start">PROJECT ART / INTERFACE CONCEPT</text>
+<text x="1536" y="730" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="500" letter-spacing="1.5" text-anchor="end">NOT A CONSOLE CAPTURE</text>
+</svg>

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">MuseStation concept 01 — Create</title>
+<desc id="desc">A proposed couch-readable home screen with a typed falling-block game request, voice input, and small app ideas. Concept with sample data, not a hardware capture.</desc>
+<defs><radialGradient id="glow"><stop stop-color="#364724"/><stop offset="1" stop-color="#101510"/></radialGradient><pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#788b65" stroke-opacity=".08"/></pattern></defs>
+<rect x="0" y="0" width="1600" height="900" rx="0" fill="#101510"/>
+<ellipse cx="1410" cy="150" rx="710" ry="900" fill="url(#glow)"/>
+<rect x="0" y="0" width="1600" height="900" rx="0" fill="url(#grid)"/>
+<g transform="translate(64 44) scale(0.65625)"><rect width="64" height="64" rx="15" fill="#d1f37a"/><path d="M13 45V20h6l13 15 13-15h6v25h-7V31L32 44 20 31v14z" fill="#18240e"/></g>
+<text x="120" y="76" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="600" letter-spacing="-0.8" text-anchor="start">MuseStation</text>
+<text x="335" y="75" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="400" letter-spacing="1.5" text-anchor="start">MAKE SOMETHING WORTH PLAYING.</text>
+<rect x="1295" y="48" width="240" height="36" rx="18" fill="#27341e" stroke="#4d6237"/>
+<text x="1312" y="72" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="500" letter-spacing="0.6" text-anchor="start">HYBRID / MUSE</text>
+<path d="M64 116L1536 116" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="64" y="158" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="500" letter-spacing="1.8" text-anchor="start">01 / YOUR CONSOLE. YOUR IDEAS.</text>
+<text x="61" y="245" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="500" letter-spacing="-2.7" text-anchor="start">What should we make?</text>
+<text x="65" y="297" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="400" letter-spacing="0" text-anchor="start">Start small. Give your idea a place to play.</text>
+<rect x="64" y="349" width="920" height="423" rx="24" fill="#192119" stroke="#354332"/>
+<text x="96" y="395" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="600" letter-spacing="1.8" text-anchor="start">YOUR IDEA</text>
+<rect x="96" y="425" width="856" height="118" rx="16" fill="#111a11" stroke="#546a3d"/>
+<text x="124" y="476" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="500" letter-spacing="-0.7" text-anchor="start">Make a falling-block game with</text>
+<text x="124" y="519" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="500" letter-spacing="-0.7" text-anchor="start">a score and a next-piece preview.</text>
+<text x="98" y="586" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="400" letter-spacing="0" text-anchor="start">Type a request, or hold R2 to talk.</text>
+<rect x="100" y="635.5" width="4" height="9.0" rx="2" fill="#6f8451"/>
+<rect x="109" y="625.302448421594" width="4" height="29.3951031568119" rx="2" fill="#d1f37a"/>
+<rect x="118" y="621.0008450566655" width="4" height="37.99830988666902" rx="2" fill="#d1f37a"/>
+<rect x="127" y="625.0822605004977" width="4" height="29.83547899900466" rx="2" fill="#d1f37a"/>
+<rect x="136" y="635.1869308519716" width="4" height="9.626138296056784" rx="2" fill="#6f8451"/>
+<rect x="145" y="625.5273906918324" width="4" height="28.94521861633525" rx="2" fill="#d1f37a"/>
+<rect x="154" y="621.0076049190044" width="4" height="37.984790161991235" rx="2" fill="#d1f37a"/>
+<rect x="163" y="624.866929585563" width="4" height="30.26614082887404" rx="2" fill="#d1f37a"/>
+<rect x="172" y="634.8740076644734" width="4" height="10.251984671053131" rx="2" fill="#6f8451"/>
+<rect x="181" y="625.7569824375985" width="4" height="28.486035124803003" rx="2" fill="#d1f37a"/>
+<rect x="190" y="621.0211214920682" width="4" height="37.95775701586355" rx="2" fill="#d1f37a"/>
+<rect x="199" y="624.6565560693541" width="4" height="30.686887861291808" rx="2" fill="#d1f37a"/>
+<rect x="208" y="634.5613763299853" width="4" height="10.877247340029411" rx="2" fill="#6f8451"/>
+<rect x="217" y="625.9911166175785" width="4" height="28.017766764842953" rx="2" fill="#d1f37a"/>
+<rect x="226" y="621.0413884740985" width="4" height="37.917223051802985" rx="2" fill="#d1f37a"/>
+<rect x="235" y="624.451238033174" width="4" height="31.09752393365193" rx="2" fill="#d1f37a"/>
+<rect x="244" y="634.249182604918" width="4" height="11.501634790163973" rx="2" fill="#6f8451"/>
+<rect x="253" y="626.2296840726641" width="4" height="27.540631854671787" rx="2" fill="#d1f37a"/>
+<rect x="262" y="621.0683964161301" width="4" height="37.8632071677397" rx="2" fill="#d1f37a"/>
+<rect x="271" y="624.2510712013368" width="4" height="31.497857597326504" rx="2" fill="#d1f37a"/>
+<rect x="280" y="633.9375720416581" width="4" height="12.124855916683828" rx="2" fill="#6f8451"/>
+<rect x="289" y="626.4725735768451" width="4" height="27.054852846309835" rx="2" fill="#d1f37a"/>
+<rect x="298" y="621.1021327263969" width="4" height="37.79573454720622" rx="2" fill="#d1f37a"/>
+<rect x="307" y="624.0561488965382" width="4" height="31.887702206923596" rx="2" fill="#d1f37a"/>
+<rect x="316" y="633.6266899207076" width="4" height="12.746620158584768" rx="2" fill="#6f8451"/>
+<rect x="325" y="626.7196718890658" width="4" height="26.56065622186843" rx="2" fill="#d1f37a"/>
+<rect x="334" y="621.1425816762019" width="4" height="37.71483664759633" rx="2" fill="#d1f37a"/>
+<rect x="343" y="623.866561996347" width="4" height="32.26687600730615" rx="2" fill="#d1f37a"/>
+<rect x="352" y="633.3166811829511" width="4" height="13.366637634097696" rx="2" fill="#6f8451"/>
+<rect x="361" y="626.9708638060208" width="4" height="26.05827238795831" rx="2" fill="#d1f37a"/>
+<rect x="370" y="621.1897244072505" width="4" height="37.620551185498826" rx="2" fill="#d1f37a"/>
+<rect x="379" y="623.6823988908347" width="4" height="32.635202218330605" rx="2" fill="#d1f37a"/>
+<rect x="388" y="633.0076903620804" width="4" height="13.98461927583923" rx="2" fill="#6f8451"/>
+<rect x="397" y="627.2260322158658" width="4" height="25.547935568268496" rx="2" fill="#d1f37a"/>
+<rect x="406" y="621.2435389404435" width="4" height="37.5129221191131" rx="2" fill="#d1f37a"/>
+<rect x="415" y="623.503745441367" width="4" height="32.99250911726598" rx="2" fill="#d1f37a"/>
+<rect x="424" y="632.6998615172092" width="4" height="14.600276965581617" rx="2" fill="#6f8451"/>
+<rect x="433" y="627.4850581528174" width="4" height="25.029883694365328" rx="2" fill="#d1f37a"/>
+<rect x="442" y="621.3040001861226" width="4" height="37.391999627754835" rx="2" fill="#d1f37a"/>
+<rect x="451" y="623.3306849405723" width="4" height="33.33863011885553" rx="2" fill="#d1f37a"/>
+<rect x="460" y="632.3933381657097" width="4" height="15.213323668580642" rx="2" fill="#6f8451"/>
+<rect x="469" y="627.7478208526184" width="4" height="24.50435829476327" rx="2" fill="#d1f37a"/>
+<rect x="478" y="621.3710799557695" width="4" height="37.25784008846101" rx="2" fill="#d1f37a"/>
+<text x="519" y="647" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" letter-spacing="0" text-anchor="start">Local voice • hardware testing pending</text>
+<rect x="96" y="684" width="259" height="58" rx="14" fill="#d1f37a"/>
+<text x="120" y="721" fill="#18240e" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="600" letter-spacing="0" text-anchor="start">R1  Request a plan</text>
+<text x="386" y="721" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="400" letter-spacing="0" text-anchor="start">No build starts at this step.</text>
+<rect x="1010" y="349" width="526" height="423" rx="24" fill="#202b1b" stroke="#354332"/>
+<text x="1045" y="395" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="600" letter-spacing="1.8" text-anchor="start">A LITTLE INSPIRATION</text>
+<rect x="1044" y="436" width="455" height="89" rx="13" fill="#182116"/>
+<text x="1064" y="485" fill="#d1f37a" font-family="monospace" font-size="18" font-weight="500" letter-spacing="0" text-anchor="start">01</text>
+<text x="1115" y="472" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="600" letter-spacing="-0.4" text-anchor="start">Falling blocks</text>
+<text x="1115" y="500" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" letter-spacing="0" text-anchor="start">One more round.</text>
+<rect x="1044" y="541" width="455" height="89" rx="13" fill="#182116"/>
+<text x="1064" y="590" fill="#d1f37a" font-family="monospace" font-size="18" font-weight="500" letter-spacing="0" text-anchor="start">02</text>
+<text x="1115" y="577" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="600" letter-spacing="-0.4" text-anchor="start">A focus timer</text>
+<text x="1115" y="605" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" letter-spacing="0" text-anchor="start">Make some room to think.</text>
+<rect x="1044" y="646" width="455" height="89" rx="13" fill="#182116"/>
+<text x="1064" y="695" fill="#d1f37a" font-family="monospace" font-size="18" font-weight="500" letter-spacing="0" text-anchor="start">03</text>
+<text x="1115" y="682" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="600" letter-spacing="-0.4" text-anchor="start">A tiny counter</text>
+<text x="1115" y="710" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="400" letter-spacing="0" text-anchor="start">Small idea. Satisfying click.</text>
+<path d="M64 835L1536 835" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="64" y="870" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="500" letter-spacing="1.5" text-anchor="start">INTERFACE CONCEPT / SAMPLE DATA</text>
+<text x="1536" y="870" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="500" letter-spacing="1.5" text-anchor="end">NOT A CONSOLE CAPTURE</text>
+</svg>

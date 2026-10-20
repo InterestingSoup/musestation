@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">MuseStation concept 04 — Proposed connection setup</title>
+<desc id="desc">An unimplemented onboarding concept offering a temporary Cloudflare tunnel, an existing HTTPS tunnel, or a private Tailscale connection. Tailscale requires Muse-side network access. This is not an account pairing screen.</desc>
+<defs><radialGradient id="glow"><stop stop-color="#364724"/><stop offset="1" stop-color="#101510"/></radialGradient><pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#788b65" stroke-opacity=".08"/></pattern></defs>
+<rect x="0" y="0" width="1600" height="900" rx="0" fill="#101510"/>
+<ellipse cx="1410" cy="150" rx="710" ry="900" fill="url(#glow)"/>
+<rect x="0" y="0" width="1600" height="900" rx="0" fill="url(#grid)"/>
+<g transform="translate(64 44) scale(0.65625)"><rect width="64" height="64" rx="15" fill="#d1f37a"/><path d="M13 45V20h6l13 15 13-15h6v25h-7V31L32 44 20 31v14z" fill="#18240e"/></g>
+<text x="120" y="76" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="600" letter-spacing="-0.8" text-anchor="start">MuseStation</text>
+<text x="335" y="75" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="400" letter-spacing="1.5" text-anchor="start">MAKE SOMETHING WORTH PLAYING.</text>
+<rect x="1295" y="48" width="240" height="36" rx="18" fill="#27341e" stroke="#4d6237"/>
+<text x="1312" y="72" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="500" letter-spacing="0.6" text-anchor="start">PROPOSED SETUP</text>
+<path d="M64 116L1536 116" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="64" y="158" fill="#d1f37a" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="500" letter-spacing="1.8" text-anchor="start">04 / YOUR CONSOLE. YOUR IDEAS.</text>
+<text x="61" y="245" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="500" letter-spacing="-2.7" text-anchor="start">Give Muse a way in.</text>
+<text x="65" y="297" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="400" letter-spacing="0" text-anchor="start">Choose how Muse reaches your relay. Your PS5 stays on the LAN.</text>
+<rect x="64" y="349" width="472" height="371" rx="22" fill="#24311c" stroke="#8ca95c"/>
+<text x="94" y="394" fill="#d1f37a" font-family="monospace" font-size="18" font-weight="500" letter-spacing="0" text-anchor="start">01</text>
+<text x="506" y="393" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="500" letter-spacing="1" text-anchor="end">FOR A FIRST TRY</text>
+<text x="94" y="451" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="500" letter-spacing="-0.9" text-anchor="start">Quick connection</text>
+<text x="94" y="499" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">Start a temporary HTTPS tunnel.</text>
+<text x="94" y="531" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">No domain or Cloudflare</text>
+<text x="94" y="563" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">account needed.</text>
+<path d="M94 604L506 604" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="94" y="642" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" letter-spacing="0" text-anchor="start">Address changes on restart.</text>
+<text x="94" y="670" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" letter-spacing="0" text-anchor="start">Reconnect Muse when it changes.</text>
+<rect x="564" y="349" width="472" height="371" rx="22" fill="#192119" stroke="#354332"/>
+<text x="594" y="394" fill="#d1f37a" font-family="monospace" font-size="18" font-weight="500" letter-spacing="0" text-anchor="start">02</text>
+<text x="1006" y="393" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="500" letter-spacing="1" text-anchor="end">FOR EVERYDAY USE</text>
+<text x="594" y="451" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="500" letter-spacing="-0.9" text-anchor="start">Existing tunnel</text>
+<text x="594" y="499" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">Use your permanent provider URL.</text>
+<text x="594" y="531" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">Keep the same address across</text>
+<text x="594" y="563" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">relay restarts.</text>
+<path d="M594 604L1006 604" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="594" y="642" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" letter-spacing="0" text-anchor="start">Your hostname. Your tunnel.</text>
+<text x="594" y="670" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" letter-spacing="0" text-anchor="start">Provider credential still required.</text>
+<rect x="1064" y="349" width="472" height="371" rx="22" fill="#192119" stroke="#354332"/>
+<text x="1094" y="394" fill="#d1f37a" font-family="monospace" font-size="18" font-weight="500" letter-spacing="0" text-anchor="start">03</text>
+<text x="1506" y="393" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="500" letter-spacing="1" text-anchor="end">FOR TAILSCALE USERS</text>
+<text x="1094" y="451" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="500" letter-spacing="-0.9" text-anchor="start">Private network</text>
+<text x="1094" y="499" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">Allow a dedicated Muse connector</text>
+<text x="1094" y="531" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">to reach the relay on one port</text>
+<text x="1094" y="563" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">through your tailnet.</text>
+<path d="M1094 604L1506 604" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="1094" y="642" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" letter-spacing="0" text-anchor="start">Requires Muse-side tailnet access.</text>
+<text x="1094" y="670" fill="#f1f4e9" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" letter-spacing="0" text-anchor="start">Review existing broader grants.</text>
+<rect x="64" y="746" width="220" height="58" rx="14" fill="#d1f37a"/>
+<text x="88" y="783" fill="#18240e" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="600" letter-spacing="0" text-anchor="start">Continue  →</text>
+<text x="313" y="780" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" letter-spacing="0" text-anchor="start">Next: store the connection privately in Muse and verify a request.</text>
+<path d="M64 835L1536 835" fill="none" stroke="#354332" stroke-width="1"/>
+<text x="64" y="870" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="500" letter-spacing="1.5" text-anchor="start">PROPOSED ONBOARDING / NOT IMPLEMENTED</text>
+<text x="1536" y="870" fill="#b0bea8" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="500" letter-spacing="1.5" text-anchor="end">NOT A CONSOLE CAPTURE</text>
+</svg>

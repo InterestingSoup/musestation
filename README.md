@@ -1,50 +1,73 @@
+![MuseStation — Make something worth playing. Experimental homebrew creation studio for PS5; interface concept, not a console capture.](docs/mockups/cover.png)
+
 # MuseStation
 
-Describe an app on your PS5, review its plan, and approve the build. MuseStation
-combines local voice processing with a Docker build server so Muse can develop
-native homebrew apps for your console.
+**Your idea. Muse's plan. Your approval.**
 
-**Experimental preview · 01.005.000.** The application compiles, its package passes
-complete extraction/hash checks, and the relay passes a full request-to-download
-host test. **Installation, GPU inference, voice and generated-app launch have not
-yet been verified on a PS5.** This is a hardware-test candidate, not a confirmed
-stable release.
+An open-source homebrew creation studio for PS5. The goal: describe a small app
+from your couch, review Muse's plan, and approve a native build on your own Docker
+server. Local voice on the console; development and compilation through your relay.
 
-[Getting started](#getting-started) · [Controls](#controls) ·
-[Troubleshooting](#troubleshooting) · [Build evidence](docs/BUILD-REPORT-INVENTORY.md)
+[Explore the mockups](docs/mockups/README.md) · [Get started](#getting-started) ·
+[Connect Muse](docs/MUSE-CONNECT.md) · [Build evidence](docs/BUILD-REPORT-INVENTORY.md) ·
+[Project website](https://musestation.interestingsoup.com)
 
-## One repository
+> **Experimental preview · 01.005.000.** Native compilation, package checks and
+> host-side relay tests have passed. A real Muse workflow and PS5 hardware testing
+> are still pending. There is no public binary release yet.
 
-This repository contains the **PS5 application, Docker relay and compiler worker,
-toolchain and packaging scripts, documentation, and public website**.
+## From an idea to something you can play
 
-| Path | Purpose |
-|---|---|
-| [`compose.yaml`](compose.yaml), [`relay/`](relay/) | Docker services running on the owner's build server; API, exchange, job queue and compiler worker |
-| [`Dockerfile`](Dockerfile), [`native/`](native/), [`src/`](src/) | PS5 SDK image, native interface, installer helper and C client |
-| [`inference/`](inference/) | Local language, transcription, speech and GPU adapters, with dependency locks |
-| [`packaging/`](packaging/), [`scripts/`](scripts/) | Package builder, patches, pinned dependency downloads and build/deployment tools |
-| [`docs/`](docs/), [`tests/`](tests/) | Setup guides, contracts, verification reports and regression tests |
-| [`companion/`](companion/) | Separate status-only Muse SDK experiment; not the live relay's connector |
-| [`site/`](site/) | Landing page, published separately by GitHub Pages |
+**Describe → review → approve → compile → verify → install.**
 
-GitHub holds the shared source. The development Mac and Opti3 are checkouts of
-this same repository; **Opti3 runs Docker and keeps deployment state locally**.
-A push updates source control; it does not automatically redeploy the relay.
-GitHub Pages publishes only `site/` and cannot run the Docker services.
-See [repository and deployment layout](docs/REPOSITORY.md).
+Muse proposes the plan and develops the source. Your relay compiles the approved
+revision. MuseStation checks the package and handles the install/launch workflow.
+You keep the controller—and the approval.
 
-Private `.env.relay` settings, credentials, databases, exchange jobs, logs and
-downloaded models are excluded from Git. Large packages and corresponding-source
-archives are build/release artifacts, not files in the repository checkout.
-Dependency fetchers and locks are included to reconstruct their build inputs.
+<table>
+  <tr>
+    <td width="50%">
+      <a href="docs/mockups/01-create.png"><img src="docs/mockups/01-create.png" alt="Create concept: type a small app idea or use local voice. Hardware voice testing is pending." width="100%"></a>
+      <strong>01 / Start with an idea</strong><br>
+      A simple request, with room to refine it.
+    </td>
+    <td width="50%">
+      <a href="docs/mockups/02-review.png"><img src="docs/mockups/02-review.png" alt="Review concept: an example plan with Cross to approve, Square to add detail, and Circle to cancel." width="100%"></a>
+      <strong>02 / Make the plan yours</strong><br>
+      Nothing builds before your explicit approval.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <a href="docs/mockups/03-build.png"><img src="docs/mockups/03-build.png" alt="Build concept: illustrative compile, package verification, and install stages with a sample counter app." width="100%"></a>
+      <strong>03 / Bring the build home</strong><br>
+      Your server compiles; the console checks the package.
+    </td>
+    <td width="50%">
+      <a href="docs/mockups/04-connect.png"><img src="docs/mockups/04-connect.png" alt="Proposed, unimplemented setup wizard: temporary tunnel, existing HTTPS tunnel, or private Tailscale connection." width="100%"></a>
+      <strong>04 / Connect on your terms</strong><br>
+      Proposed setup for tunnels and private networking.
+    </td>
+  </tr>
+</table>
+
+**Design mockups, not screenshots of a running PS5.** Text, plans, app artwork and
+progress are illustrative. The connection wizard is proposed, not implemented.
+[View full-size images, editable SVGs and implementation notes →](docs/mockups/README.md)
 
 ## Project status
 
-The source here is the **01.005.000 development candidate**. Native compilation,
-package extraction/hash checks and host-side relay tests passed; PS5 installation,
-GPU execution, microphone capture and launch still require hardware testing.
-The real Muse connector is pending. There is no QR/device-code login flow.
+| Area | What is established |
+|---|---|
+| **Native app + bundled models** | Docker compilation and complete package extraction/hash checks passed. |
+| **Docker relay + compiler worker** | 81 relay tests passed; a fixture request completed the real compile, package and download path. |
+| **Provider connection** | Authenticated HTTPS reachability verified. A real Muse request/plan/source round trip is still pending. |
+| **PS5 hardware** | Installation, GPU inference, microphone capture, speech playback and generated-app launch remain unverified. |
+
+The **01.005.000 development candidate** is a hardware-test candidate, not a
+confirmed stable release. No QR/device-code login flow is implemented.
+See the [build report](docs/BUILD-REPORT-INVENTORY.md) and
+[provider connection checks](docs/MUSE-CONNECT.md#named-endpoint-verification).
 
 Receiving a console for the first time? Follow the [arrival-day guide](docs/FIRST-DAY.md)
 for offline setup, update controls, LAN isolation and the payload compatibility
@@ -247,6 +270,44 @@ When reporting a problem, provide the MuseStation version, console model,
 reported firmware and the stage that failed. The operator should inspect uploaded
 Hybrid logs first. Do not post either relay key or unreviewed private logs publicly.
 Logs are not expected to be manually retyped.
+
+## One repository
+
+The **PS5 application, Docker relay and compiler worker, toolchain, packaging
+scripts, documentation and public website** all live here.
+
+| Path | Purpose |
+|---|---|
+| [`compose.yaml`](compose.yaml), [`relay/`](relay/) | Docker services: API, exchange, job queue and compiler worker |
+| [`Dockerfile`](Dockerfile), [`native/`](native/), [`src/`](src/) | PS5 SDK image, native interface, installer helper and C client |
+| [`inference/`](inference/) | Local language, transcription, speech and GPU adapters, with dependency locks |
+| [`packaging/`](packaging/), [`scripts/`](scripts/) | Package builder, patches, pinned dependency downloads and build/deployment tools |
+| [`docs/`](docs/), [`tests/`](tests/) | Setup guides, contracts, verification reports and regression tests |
+| [`docs/mockups/`](docs/mockups/) | Interface concepts, editable artwork and sharing assets |
+| [`companion/`](companion/) | Separate status-only Muse SDK experiment; not the live relay's connector |
+| [`site/`](site/) | Landing page, published separately by GitHub Pages |
+
+GitHub holds the shared source. The development Mac and Opti3 are checkouts of
+this same repository; **Opti3 runs Docker and keeps deployment state locally**.
+A push updates source control; it does not automatically redeploy the relay.
+GitHub Pages publishes only `site/` and cannot run the Docker services.
+See [repository and deployment layout](docs/REPOSITORY.md).
+
+Private `.env.relay` settings, credentials, databases, exchange jobs, logs and
+downloaded models are excluded from Git. Large packages and corresponding-source
+archives are build/release artifacts, not files in the repository checkout.
+Dependency fetchers and locks are included to reconstruct their build inputs.
+
+## Help shape MuseStation
+
+Useful next contributions are a real Muse connector, first-hand hardware reports,
+and feedback on the controller flow and setup experience. Include exact
+firmware/payload versions and distinguish a host test from a console result.
+
+[Open an issue](https://github.com/moiz-qureshi/musestation/issues) with an idea or
+reproducible finding. For community introductions, there is a
+[ready-to-copy Discord draft](docs/discord-post.txt) and
+[mockup gallery](docs/mockups/README.md).
 
 ## Development and licenses
 
