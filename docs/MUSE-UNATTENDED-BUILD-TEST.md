@@ -5,9 +5,10 @@ test outbox is empty. Muse reports its separate test scheduler is enabled and it
 test credential is in the vault, but its first scheduled check hit a transport
 block. A successful empty check from that worker remains pending. The Quick
 Tunnel passed operator checks but Muse reported HTTP 403 from its environment.
-The operator has removed it and prepared a named-hostname backend; Cloudflare
-route creation and Muse-side verification remain pending. No request, approval,
-source or build has been created in this test.
+The Quick Tunnel has been removed. The owner created the separate named route,
+and operator verification through it passed. Muse still needs to switch its test
+connector to that URL and report a successful scheduled empty check. No request,
+approval, source or build has been created in this test.
 The [automatic plan canary](MUSE-UNATTENDED.md#observed-plan-only-canary) passed,
 and the earlier [Muse source/build test](MUSE-SOURCE-TEST.md#verified-result)
 passed with an interactive handoff. This test joins those two paths under the
@@ -73,9 +74,10 @@ Muse reports that the Quick Tunnel origin returned a Cloudflare HTTP 403 from it
 environment with both the application and browser User-Agent. Operator-side
 checks succeeded earlier; they do not establish reachability from Muse. The exact
 cause of the environment-dependent block has not been independently established.
-A separate named route is the next transport to test, not a proven resolution.
+A separate named route now passes operator checks; resolution of Muse's egress
+block remains unverified until its worker succeeds through that route.
 
-The operator prepared this published application:
+The owner created this published application:
 
 | Cloudflare setting | Value |
 |---|---|
@@ -85,7 +87,7 @@ The operator prepared this published application:
 | Service URL | `192.168.5.54:18871` |
 | Path | Leave blank. |
 
-Create it as an additional route and retain the normal route. Cloudflare documents
+It is an additional route; the normal route was retained. Cloudflare documents
 the hostname-to-local-service mapping in its
 [published application guide](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/routing-to-tunnel/).
 The test console approval listener remains `127.0.0.1:18870` and must not be
@@ -96,6 +98,19 @@ network namespace reached the new private backend and received the expected
 HTTP 401 without credentials. An authenticated host check returned the empty
 outbox. The normal database/ledger still matched the baseline. These verify the
 origin connection, not DNS, public routing or Muse egress.
+
+The named origin passed operator verification at `2026-10-20T07:24:00Z`:
+authenticated outbox HTTP 200 with cursor 0 and no events; missing credentials
+HTTP 401; console route HTTP 404 on the provider listener; cross-use of normal
+and test credentials HTTP 401. The normal outbox remained empty after cursor 2,
+its baseline snapshot and title ledger matched, and the test compiler heartbeat
+was recent.
+
+An independent HTTPS request from the development Mac passed at `07:25:24Z`.
+The Mac's resolver still returned a negative result, so this probe used an address
+from a fresh public DNS answer while preserving the hostname and TLS certificate
+validation. This establishes the named public route from the operator's network,
+not from Muse's runtime.
 
 The existing test token is unchanged. After the new route is saved, update only
 the existing test connector's origin (and its vault origin binding, if required)
