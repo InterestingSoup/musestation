@@ -135,8 +135,11 @@ For continuous processing, follow the
 [unattended connector guide](MUSE-UNATTENDED.md). The owner reports a Muse runtime
 schedule; a later plan-only canary received a verified response without another
 message to Muse. Muse subsequently reported the matching run, checkpoint and
-retry/lock checks. That guide separates owner-reported worker evidence from
-direct relay checks and the remaining concurrency and runtime-restart tests.
+retry/lock checks. A later [isolated unattended build](MUSE-UNATTENDED-BUILD-TEST.md#verified-build-result)
+received both plan and source without follow-up prompts and passed compilation,
+package readback and download verification after operator approval. Its final
+Muse checkpoint/self-disable report is pending. The guides separate owner-reported
+worker evidence from direct relay checks and remaining concurrency/restart tests.
 
 The health response currently keeps `muse_connector_verified` hardcoded false.
 It is not a live authentication indicator. A successful outbox read establishes

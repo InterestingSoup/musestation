@@ -1,14 +1,18 @@
 # Unattended Muse processing
 
-**Status, 2026-10-19:** plan exchange and a Muse-submitted native build have passed.
+**Status, 2026-10-20:** plan exchange and a Muse-submitted native build have passed.
 The owner reports that Muse's native runtime scheduler now runs the existing
 `custom.musestation` connector every 60 seconds. A separately submitted plan-only
 canary received a verified plan without another operator message to Muse, ready
 by the 2-minute-40-second check. Muse subsequently reported the matching scheduled
 run, saved checkpoint and successful retry/lock checks. Independent relay checks
 confirmed unchanged plan content, zero jobs and an empty outbox after event 2.
-Actual runtime restart, timeout termination and simultaneous lock acquisition
-remain unverified.
+A subsequent [isolated unattended build](MUSE-UNATTENDED-BUILD-TEST.md#verified-build-result)
+received a plan and source without follow-up prompts, then passed Docker
+compilation, package readback and independent artifact hashing after operator
+approval. Muse's matching run IDs and final checkpoint/self-disable report are
+pending. Actual runtime restart, timeout termination and simultaneous lock
+acquisition remain unverified.
 
 The Opti3 relay and compiler worker already run continuously. A relay poller can
 detect work, but it also needs a supported way to invoke Muse with the connector
@@ -107,10 +111,10 @@ an actual process/runtime restart, interruption during a POST, timeout terminati
 or a transient network failure. The relay observations corroborate unchanged
 application state; they cannot inspect the remote worker's locking implementation.
 
-The next milestone is a fresh
-[isolated unattended build test](MUSE-UNATTENDED-BUILD-TEST.md), with a separate
-connector state directory and provider endpoint. Do not switch the live normal
-worker's hostname to another database.
+The subsequent [isolated unattended build test](MUSE-UNATTENDED-BUILD-TEST.md#verified-build-result)
+passed its relay/compiler/package checks with a separate connector state directory
+and provider endpoint. Its Muse-side result checkpoint and shutdown report remain
+pending. Do not switch the live normal worker's hostname to another database.
 
 ## Establish the execution mechanism first
 
