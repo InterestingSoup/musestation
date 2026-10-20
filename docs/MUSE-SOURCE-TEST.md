@@ -76,6 +76,11 @@ cursor was **3**. Resume the connector from its own persisted normal checkpoint;
 do not import the test cursor or reset a normal checkpoint that has advanced.
 The [unattended processing guide](MUSE-UNATTENDED.md) records subsequent canaries.
 
+The normal connector is now scheduled continuously. Do not repeat the old
+hostname cutover while it is active: follow the
+[isolated unattended build procedure](MUSE-UNATTENDED-BUILD-TEST.md), which uses
+a separate endpoint and connector state instead.
+
 ## Instructions for another authorized test
 
 These steps require a newly staged isolated test and a fresh operator handoff.

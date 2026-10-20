@@ -134,8 +134,9 @@ console routes, or directly launch anything on the PS5.
 For continuous processing, follow the
 [unattended connector guide](MUSE-UNATTENDED.md). The owner reports a Muse runtime
 schedule; a later plan-only canary received a verified response without another
-message to Muse. That guide separates this observed response from the remaining
-scheduler run-correlation, overlap and restart-recovery checks.
+message to Muse. Muse subsequently reported the matching run, checkpoint and
+retry/lock checks. That guide separates owner-reported worker evidence from
+direct relay checks and the remaining concurrency and runtime-restart tests.
 
 The health response currently keeps `muse_connector_verified` hardcoded false.
 It is not a live authentication indicator. A successful outbox read establishes
@@ -156,7 +157,9 @@ was independently confirmed through the console-facing API, as recorded below.
 The subsequent source/compile check also passed. A later
 [unattended plan-only canary](MUSE-UNATTENDED.md#observed-plan-only-canary) received
 a verified plan without another message to Muse. The helper implementation,
-scheduler restart/overlap recovery and PS5 operation remain unverified. The relay
+scheduler concurrency and actual runtime-restart behavior, and PS5 operation
+remain unverified. Reported fresh-lock and simulated stale-lock tests are recorded
+in the unattended guide. The relay
 health flags remain hardcoded false; they are not live connection indicators and
 were not changed for these checks.
 

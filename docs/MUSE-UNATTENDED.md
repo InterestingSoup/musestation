@@ -4,8 +4,11 @@
 The owner reports that Muse's native runtime scheduler now runs the existing
 `custom.musestation` connector every 60 seconds. A separately submitted plan-only
 canary received a verified plan without another operator message to Muse, ready
-by the 2-minute-40-second check. The scheduler run identifier, restart recovery
-and worker overlap protection remain unverified.
+by the 2-minute-40-second check. Muse subsequently reported the matching scheduled
+run, saved checkpoint and successful retry/lock checks. Independent relay checks
+confirmed unchanged plan content, zero jobs and an empty outbox after event 2.
+Actual runtime restart, timeout termination and simultaneous lock acquisition
+remain unverified.
 
 The Opti3 relay and compiler worker already run continuously. A relay poller can
 detect work, but it also needs a supported way to invoke Muse with the connector
@@ -22,6 +25,7 @@ runtime details have not been independently inspected from Opti3:
 | Invocation | Muse's native runtime scheduler; continues after the chat closes and across runtime restarts. |
 | Cadence | Every 60 seconds, the runtime's minimum interval. Each tick is a full agent run, including an empty outbox check. |
 | Run limit | 30 minutes. |
+| Stale-lock threshold | Changed from 25 to 35 minutes after the canary; see the recovery report below. |
 | Durable state | `~/workspace/goals/ps5-homebrew-muse-gadget/hidden_files/musestation-worker/`: cursor/lock, event journal, exact prepared POST bodies, receipts, results, diagnostics and run logs. |
 | Initial checkpoint | Normal event sequence 1; isolated test checkpoint 3 was not imported. |
 | Empty checks | Three successful scheduled checks reported at 23:23, 23:24 and 23:25 PDT, with no submissions or jobs. |
@@ -33,15 +37,18 @@ cadence this configuration schedules 1,440 runs per day; an empty check still
 invokes an agent. This is the owner's current setup, not a scheduler bundled with
 the MuseStation Docker image or a guarantee for every Muse account.
 
-**Lock review remains open:** the report says a lock becomes stale after 25
-minutes, but a run may last 30 minutes. If expiry is based only on lock age,
-another tick could take over while the original run is alive. Confirm a scheduler
-non-overlap guarantee or use a process-held lock. A renewable lease needs owner
-identification, renewal and ownership checks before submitting work; a worker
-that loses ownership must stop. Do not reclaim a lock from elapsed age alone
-while its owner may still run. A non-renewing lease must cover the enforced run
-limit plus termination grace, with the former worker confirmed stopped before
-takeover. The plan-only canary does not validate these recovery guarantees.
+The reported 35-minute threshold fixes the numerical mismatch with the 30-minute
+run limit. Treating such a lock as orphaned additionally depends on enforced
+termination, including any in-flight work, before takeover. A configured timeout
+alone does not demonstrate that termination occurred.
+
+The reported re-read of the old lock detects an intervening change, but a
+separate read followed by a write is not an atomic claim: two contenders can
+both read the same old lock before either writes. A scheduler-enforced
+single-consumer guarantee, a process-held lock or an atomic ownership transition
+is still required. If a renewable lease is used, a worker that loses ownership
+must stop submitting work. These are implementation properties to confirm, not
+failures observed during the plan-only canary.
 
 ## Observed plan-only canary
 
@@ -64,16 +71,46 @@ the API; this fixture value does not establish hardware execution.
 This establishes an automatic request-to-plan response through the live connector.
 The polling interval bounds when it was observed; 159.709 seconds is not an exact
 processing-duration measurement. The relay does not expose Muse's scheduler run
-identifier or its private cursor, so matching this response to a specific
-scheduled run still needs Muse-side run evidence. Scheduler survival, stale-lock
-takeover, replay after interruption and network-failure recovery were not tested.
-No source, compilation, installation or hardware execution occurred.
+identifier or its private cursor; the subsequent Muse-side report below provides
+that correlation. No source, compilation, installation or hardware execution
+occurred.
 
 Detailed input, baseline, outbox, submission and completion evidence is retained
 privately under `runtime/handoff/unattended-canary-*.json` on Opti3 and the
-development machine. The provider worker should retain its own accepted receipt
-and persist checkpoint **2** after handling this event; its private checkpoint
-has not been independently read. Do not rewind it to the setup checkpoint.
+development machine. Muse reports its accepted receipt and persisted checkpoint
+**2**; its private files have not been independently read from Opti3. Do not rewind
+it to the setup checkpoint.
+
+## Muse-reported run and recovery checks
+
+The owner relayed these results after the canary. They are Muse-side evidence
+reported by the owner, distinct from the direct relay observations above.
+
+| Check | Reported result |
+|---|---|
+| Canary execution | Run `0f8a789d-002a-4c9c-a09c-253324e8c042`, scheduled October 19 at 23:33:21 PDT (`2026-10-20T06:33:21Z`), status `succeeded`. |
+| Cursor and journal | `state.json` cursor **2**; `journal/2.json` contains `confirmed_receipt` with HTTP 200 acceptance. The SHA-256 of `journal/2.body.json` matches its recorded digest. |
+| Identical-body retry | Re-POST of the saved plan body returned HTTP 200 `accepted:true`; cursor stayed 2 and the outbox remained empty after 2. |
+| Fresh-lock exclusion | A planted age-zero lock made the 23:46 PDT scheduled tick record `lock_held` and skip without changing the lock or cursor. |
+| Simulated stale-lock recovery | A planted 60-minute-old lock was taken over and released by the 23:47 PDT tick; cursor remained 2. |
+| Threshold change | Runbook now requires a 35-minute stale threshold above the 30-minute timeout, with a re-read of the same old lock before takeover. |
+
+An independent private API/database check at `2026-10-20T06:49:36Z` found the same
+canary text and verified revision, two requests, two request events, zero jobs,
+zero approval events, and an unchanged title ledger and original counter request.
+An independent public `GET /provider/outbox?after=2` at
+`2026-10-20T06:50:42Z` returned HTTP 200 with no events and `next_after:2`.
+
+The reported tests cover accepted-body replay, an already-held fresh lock, and
+simulated stale-lock recovery. They do not exercise two simultaneous claimants,
+an actual process/runtime restart, interruption during a POST, timeout termination
+or a transient network failure. The relay observations corroborate unchanged
+application state; they cannot inspect the remote worker's locking implementation.
+
+The next milestone is a fresh
+[isolated unattended build test](MUSE-UNATTENDED-BUILD-TEST.md), with a separate
+connector state directory and provider endpoint. Do not switch the live normal
+worker's hostname to another database.
 
 ## Establish the execution mechanism first
 
