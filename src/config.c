@@ -68,6 +68,7 @@ int muse_config_validate(const struct muse_config *c,char *e,size_t n){
     if((!muse_config_local(c)||*c->relay_token)&&!muse_config_token_valid(c->relay_token))return fail(e,n,"Enter the relay console token: exactly 64 lowercase hexadecimal characters");
     if((!muse_config_local(c)||*c->shadowmount_url)&&!muse_config_console_origin(c,c->shadowmount_url))return fail(e,n,"ShadowMount URL must point to this console: loopback or its configured LAN IP");
     if(!path_ok(c->log_dir,sizeof(c->log_dir))||!path_ok(c->artifact_dir,sizeof(c->artifact_dir))||!path_ok(c->model_dir,sizeof(c->model_dir))||(*c->audio_in_module&&!path_ok(c->audio_in_module,sizeof(c->audio_in_module))))return fail(e,n,"Paths must be absolute without parent traversal or control characters");
+    if(c->coding_model_path[0]&&!path_ok(c->coding_model_path,sizeof(c->coding_model_path)))return fail(e,n,"Coding model path must be absolute without parent traversal");
     if(c->install_helper_path[0]&&!path_ok(c->install_helper_path,sizeof(c->install_helper_path)))return fail(e,n,"Install helper path must be absolute without parent traversal");
     if((c->installer_artifact_dir[0]&&!path_ok(c->installer_artifact_dir,sizeof(c->installer_artifact_dir)))||(c->installer_log_dir[0]&&!path_ok(c->installer_log_dir,sizeof(c->installer_log_dir))))return fail(e,n,"Installer path overrides must be absolute without parent traversal");
     if(strnlen(c->model,sizeof(c->model))==sizeof(c->model))return fail(e,n,"Model name too long");
@@ -94,6 +95,7 @@ int muse_config_load(const char *path,struct muse_config *c,char *e,size_t n){
     int smp=muse_json_get(&j,0,"shadowmount_url");if(smp>=0&&muse_json_string(&j,smp,c->shadowmount_url,sizeof(c->shadowmount_url)))return fail(e,n,"Invalid ShadowMount URL");
     int secret=muse_json_get(&j,0,"relay_token");if(secret>=0&&muse_json_string(&j,secret,c->relay_token,sizeof(c->relay_token)))return fail(e,n,"Invalid relay token");
     int t=muse_json_get(&j,0,"model");if(t>=0&&muse_json_string(&j,t,c->model,sizeof(c->model)))return fail(e,n,"Invalid model");
+    t=muse_json_get(&j,0,"coding_model_path");if(t>=0&&muse_json_string(&j,t,c->coding_model_path,sizeof(c->coding_model_path)))return fail(e,n,"Invalid coding model path");
     t=muse_json_get(&j,0,"install_helper_path");if(t>=0&&muse_json_string(&j,t,c->install_helper_path,sizeof(c->install_helper_path)))return fail(e,n,"Invalid install helper path");
     t=muse_json_get(&j,0,"installer_artifact_dir");if(t>=0&&muse_json_string(&j,t,c->installer_artifact_dir,sizeof(c->installer_artifact_dir)))return fail(e,n,"Invalid installer artifact directory");
     t=muse_json_get(&j,0,"installer_log_dir");if(t>=0&&muse_json_string(&j,t,c->installer_log_dir,sizeof(c->installer_log_dir)))return fail(e,n,"Invalid installer log directory");
@@ -118,7 +120,7 @@ int muse_config_save(const char *path,const struct muse_config *c,char *e,size_t
     int bad=0;char q[3074];
     if(fputs("{\n  \"schema_version\": 1",f)<0)bad=1;
 #define FIELD(name) do{if(muse_json_quote(c->name,q,sizeof(q))||fprintf(f,",\n  \"" #name "\": %s",q)<0)bad=1;}while(0)
-    FIELD(build_mode);FIELD(hybrid_provider);FIELD(console_ip);FIELD(server_url);FIELD(relay_token);FIELD(shadowmount_url);FIELD(ps5lm_url);FIELD(speech_url);FIELD(log_dir);FIELD(artifact_dir);FIELD(model_dir);FIELD(audio_in_module);FIELD(install_helper_path);FIELD(installer_artifact_dir);FIELD(installer_log_dir);FIELD(inference_backend);FIELD(speech_mode);FIELD(model);FIELD(firmware_reported);
+    FIELD(build_mode);FIELD(hybrid_provider);FIELD(console_ip);FIELD(server_url);FIELD(relay_token);FIELD(shadowmount_url);FIELD(ps5lm_url);FIELD(speech_url);FIELD(log_dir);FIELD(artifact_dir);FIELD(model_dir);FIELD(audio_in_module);FIELD(coding_model_path);FIELD(install_helper_path);FIELD(installer_artifact_dir);FIELD(installer_log_dir);FIELD(inference_backend);FIELD(speech_mode);FIELD(model);FIELD(firmware_reported);
 #undef FIELD
     if(fputs(",\n  \"payloads\": {",f)<0)bad=1;
 #define PAYLOAD(name, comma) do { if(muse_json_quote(c->name##_status,q,sizeof(q))||fprintf(f,comma "\"" #name "\":{\"user_reported\":%s,\"verified\":false}",q)<0)bad=1; } while(0)

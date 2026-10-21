@@ -21,7 +21,9 @@ docker build -t muse-package:station packaging
 The native/inference staging and compile commands are in the root documentation
 and scripts. Engine source caches include their `.muse-revision` markers and can
 be used directly. Download model weights with `scripts/inference-fetch-models.py`,
-which verifies the exact sizes and SHA-256 hashes from `inference/lock.json`.
+which verifies the exact sizes and SHA-256 hashes from `inference/lock.json` and
+fetches bundled Whisper by default. The coder is excluded from the title; use
+`--include-codegen` only for developer tests, or download it in Local setup.
 Download the neural model/projector using scripts/neural-fetch-models.py and
 inference/neural-lock.json. The GPU sources are supplied under inference/vendor/gpu
 with pins in inference/gpu/lock.json; see docs/GPU.md and docs/NATIVE-APP.md for the

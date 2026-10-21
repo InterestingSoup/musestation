@@ -309,7 +309,7 @@ void Worker::create_local(const Work &w, Result &r, const char *request_text,
     r.rc = engine ? muse_inference_draft(static_cast<muse_inference *>(engine),
                                          request_text, draft, sizeof draft,
                                          error, sizeof error) : -1;
-    if (r.rc) { r.error = *error ? error : "Initialize the bundled local model before planning."; return; }
+    if (r.rc) { r.error = *error ? error : "Download or select a local coding model before planning."; return; }
     plan_text = draft;
 #else
     r.rc = -1; r.error = "This build has no bundled local planner."; return;
@@ -546,6 +546,7 @@ void Worker::loop() {
       } else {
         const bool reload = muse_config_local(&client.config) != muse_config_local(&w.configuration) ||
             std::strcmp(client.config.model_dir, w.configuration.model_dir) ||
+            std::strcmp(client.config.coding_model_path, w.configuration.coding_model_path) ||
             std::strcmp(client.config.artifact_dir, w.configuration.artifact_dir) ||
             std::strcmp(client.config.inference_backend, w.configuration.inference_backend) ||
             std::strcmp(client.config.speech_mode, w.configuration.speech_mode);
@@ -569,6 +570,18 @@ void Worker::loop() {
         approved_generation = downloaded_generation = 0;
         approved_job.clear(); downloaded_path.clear();
         r.needs_init = engine == nullptr;
+      }
+    } else if (w.type == Task::model_download) {
+      // Explicit setup download only; Local jobs never initiate network requests.
+      if (installer || (current_job.id[0] && current_job.state == MUSE_LOCAL_QUEUED)) {
+        r.rc=-1; r.error="Pause local work or finish installation before downloading a model.";
+      } else {
+        r.rc=download_coding_model(w.text, std::string(client.config.artifact_dir)+"/models",
+                                  model_transfer,r.path,r.error)?0:-1;
+#ifdef MUSE_LOCAL_INFERENCE
+        // Re-test a freshly downloaded selection even when its path is unchanged.
+        if (!r.rc && engine) { muse_inference_destroy(static_cast<muse_inference *>(engine)); engine=nullptr; }
+#endif
       }
     } else {
     if (!opened)
@@ -604,8 +617,8 @@ void Worker::loop() {
         if (engine) break;
 #ifdef MUSE_LOCAL_INFERENCE
         const std::string base = client.config.model_dir;
-        const std::string llm = base + "/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
-                          whisper = base + "/ggml-tiny.en.bin";
+        const std::string llm = client.config.coding_model_path;
+        const std::string whisper = base + "/ggml-tiny.en.bin";
         const std::string neural = base + "/Qwen3-TTS-12Hz-0.6B-Base.Q4_K_M.gguf",
                           projector = base + "/Qwen3-TTS-12Hz-0.6B-Base.mmproj-Q8_0.gguf";
         auto policy = !std::strcmp(client.config.inference_backend, "cpu")
@@ -613,13 +626,18 @@ void Worker::loop() {
                           : !std::strcmp(client.config.inference_backend, "vulkan_required")
                                 ? MUSE_BACKEND_VULKAN_REQUIRED : MUSE_BACKEND_AUTO;
         const bool neural_enabled = std::strcmp(client.config.speech_mode, "espeak");
-        muse_inference_config cfg{muse_config_local(&client.config) ? llm.c_str() : nullptr,
+        muse_inference_config cfg{muse_config_local(&client.config) && !llm.empty() ? llm.c_str() : nullptr,
                                   whisper.c_str(), base.c_str(),
                                   "en", 2, policy, client.config.artifact_dir,
                                   neural_enabled ? neural.c_str() : nullptr,
                                   neural_enabled ? projector.c_str() : nullptr};
         char err[512]{};
         engine = muse_inference_create(&cfg, err, sizeof err);
+        if (!engine && cfg.llm_model) {
+          // A missing/unsupported optional coder must not disable local speech.
+          r.error=err; r.coding_model_unavailable=true; cfg.llm_model=nullptr;
+          engine=muse_inference_create(&cfg,err,sizeof err);
+        }
         if (!engine) {
           r.rc = -1;
           r.error = err;
@@ -896,6 +914,7 @@ void Worker::loop() {
         }
         break;
       }
+      case Task::model_download: break; // handled outside ordinary Local operations
       case Task::configure: break; // handled before any journal/network operation
       case Task::local_create:
       case Task::local_load:

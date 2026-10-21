@@ -5,7 +5,27 @@ requirements for implementation; upstream verification lives in docs/RESEARCH.md
 Status: planning, v1 scope locked 2026-10-18.
 Owner: user. Architect/server pipeline: Muse. Coder: Astra (Codex).
 
-## Title inventory and deferred ZIP amendment — 2026-10-19 (current)
+## Optional coding-model amendment — 2026-10-20 (current)
+
+The user's latest packaging decision supersedes earlier bundled-coder requirements:
+
+- Keep Whisper tiny.en, Qwen3-TTS 0.6B with projector, and eSpeak data in the native
+  package. Keep Hybrid/Muse as the default; it needs no coding model.
+- Local lab offers an explicit on-console download of the pinned recommended
+  Qwen2.5-Coder or a compatible public Hugging Face GGUF file URL. This setup
+  operation may use HTTPS; ordinary Local inference/jobs/logs remain offline.
+- This is not universal Hugging Face compatibility. Current runtime limits are
+  single-file GGUF v3 Qwen2/Qwen3 ChatML text models, at most 1.5 GiB, with public
+  SHA-256/size metadata. Reject unsupported formats and report loading failures.
+- Model setup checks integrity, preserves the previous selection on download
+  failure, and stores downloaded weights/config outside the app bundle. Speech
+  can initialize without a coder, including after a coder load fails.
+- Direct downloads, TLS compatibility and model performance require the owner's
+  PS5 test. Host fixtures and compilation do not establish those results.
+
+See [model setup](docs/LOCAL-MODELS.md) for controls, persistence and limitations.
+
+## Title inventory and deferred ZIP amendment — 2026-10-19
 
 These requirements are implemented in the 01.005.000 candidate. Compilation and
 package evidence is in docs/BUILD-REPORT-INVENTORY.md; hardware remains unverified.

@@ -12,7 +12,7 @@ server. Local voice on the console; development and compilation through your rel
 [Connect Muse](docs/MUSE-CONNECT.md) · [Build evidence](docs/BUILD-REPORT-INVENTORY.md) ·
 [Project website](https://musestation.interestingsoup.com)
 
-> **Experimental preview · 01.005.000.** Native compilation, package checks and
+> **Experimental preview · 01.006.000.** Native compilation, package checks and
 > host-side relay tests have passed. Muse plan exchange and a Muse-submitted
 > native build are verified on the host. PS5 hardware testing remains pending.
 > There is no public binary release yet.
@@ -66,9 +66,9 @@ progress are illustrative. The connection wizard is proposed, not implemented.
 | **Unattended Muse build** | An isolated request received a plan and source without follow-up prompts; after operator approval, Docker produced a package with 82-file readback and a verified download hash. Muse reported result cursor 3 and test-worker self-disable; test services are stopped. See the [evidence](docs/MUSE-UNATTENDED-BUILD-TEST.md#verified-build-result). |
 | **PS5 hardware** | Installation, GPU inference, microphone capture, speech playback and generated-app launch remain unverified. |
 
-The **01.005.000 development candidate** is a hardware-test candidate, not a
+The **01.006.000 development candidate** is a hardware-test candidate, not a
 confirmed stable release. No QR/device-code login flow is implemented.
-See the [build report](docs/BUILD-REPORT-INVENTORY.md) and
+See the [build report](docs/BUILD-REPORT-OPTIONAL-MODELS.md) and
 [Muse integration evidence](docs/MUSE-SOURCE-TEST.md#verified-result).
 
 Receiving a console for the first time? Follow the [arrival-day guide](docs/FIRST-DAY.md)
@@ -80,12 +80,14 @@ checkpoints before installation.
 | Mode | What it does |
 |---|---|
 | **Hybrid with Muse** — default | Type or transcribe locally. Muse returns a plan through your relay. You approve it; the server compiles a native `.pkg`; MuseStation verifies the download and uses its installer/launch helper. |
-| **Local lab** — experimental | A bundled small model creates bounded Lua apps entirely on the console. These run **inside MuseStation**, with a separate Play action after validation. They are not standalone home-screen packages. |
+| **Local lab** — experimental | An optional downloaded model creates bounded Lua apps entirely on the console. These run **inside MuseStation**, with a separate Play action after validation. They are not standalone home-screen packages. |
 
-Whisper tiny.en, Qwen3-TTS 0.6B with its projector, eSpeak voice data, and
-Qwen2.5-Coder 1.5B are bundled. No first-run model download is required. Hybrid
-skips loading the coding model. GPU inference and CPU recovery are integrated;
-console performance remains to be measured.
+Whisper tiny.en, Qwen3-TTS 0.6B with its projector, and eSpeak voice data are
+bundled. **The coding model is optional:** Local setup downloads the recommended
+Qwen2.5-Coder 1.5B directly onto the PS5, or accepts a compatible public Hugging
+Face GGUF file URL. Hybrid needs no coder download. Downloaded coding models stay outside the app
+bundle across updates. See [model setup and compatibility limits](docs/LOCAL-MODELS.md).
+GPU inference and CPU recovery are integrated; console operation remains unverified.
 
 **Hybrid requires a configured Muse connector.** The owner's Muse workspace returned
 a verified plan and submitted source that compiled into a verified native package.

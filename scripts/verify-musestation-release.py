@@ -17,7 +17,8 @@ def digest(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("directory", type=Path)
-    parser.add_argument("--version", default="01.002.000")
+    parser.add_argument("--version", default="01.006.000")
+    parser.add_argument("--legacy-bundled-codegen", action="store_true", help="Verify a historical release that bundled its coder")
     args = parser.parse_args()
     assert re.fullmatch(r"[0-9]{2}\.[0-9]{3}\.[0-9]{3}", args.version)
     package = args.directory / "IV0000-PPSA99576_00-MUSEGADGET000001.pkg"
@@ -58,7 +59,8 @@ def main():
         assert entry["sha256"] == expected, path
     models = []
     for lock in ("lock.json", "neural-lock.json"):
-        models += json.loads((ROOT / "inference" / lock).read_text())["models"]
+        items = json.loads((ROOT / "inference" / lock).read_text())["models"]
+        models += [m for m in items if args.legacy_bundled_codegen or m.get("bundled", True)]
     expected_weights = {"assets/inference/" + m["name"] for m in models}
     actual_weights = {p for p in files if p.startswith("assets/inference/") and p.endswith((".gguf", ".bin"))}
     assert actual_weights == expected_weights

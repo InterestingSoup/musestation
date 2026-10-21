@@ -29,7 +29,7 @@ for header in lua.glob('*.h'): shutil.copy2(header,lua_stage/header.name)
 for name in ['pic0.dds','pic1.dds','snd0.at9']:
     (stage/'sce_sys'/name).unlink(missing_ok=True)
 param=json.loads((up/'sce_sys/param.json').read_text())
-version=os.environ.get('MUSE_NATIVE_VERSION','01.002.000')
+version=os.environ.get('MUSE_NATIVE_VERSION','01.006.000')
 if not re.fullmatch(r'[0-9]{2}\.[0-9]{3}\.[0-9]{3}',version):
     raise SystemExit('MUSE_NATIVE_VERSION must have format 01.003.000')
 param.update(titleId='PPSA99576',conceptId='99576',contentId='IV0000-PPSA99576_00-MUSEGADGET000001',contentVersion=version)

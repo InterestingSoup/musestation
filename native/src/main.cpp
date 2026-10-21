@@ -135,6 +135,7 @@ int main() {
   muse::LocalPlayer player;
   bool local_run = false, library_pending = false, play_pending = false;
   bool refining = false;
+  bool open_model_setup = false;
   bool cancel_pending = false;
   muse::Work cancelled_plan;
   const unsigned attempt_budgets[] = {4, 64, 512};
@@ -277,7 +278,7 @@ int main() {
       view.error=config_error;
     } else {
       cfg=pending_config; configured=true; initialize();
-      if (worker_started) { view.screen=muse::Screen::home; view.detail=home_detail(); }
+      if (worker_started) { view.screen=(open_model_setup || (view.local && !cfg.coding_model_path[0])) ? muse::Screen::models : muse::Screen::home; view.detail=home_detail(); open_model_setup=false; }
     }
   };
   auto last = sys::monotonic_us();
@@ -330,6 +331,15 @@ int main() {
                                : "Session logs uploaded.";
         } else if (res.work.type == muse::Task::plan_cancel) {
           if (res.rc < 0) view.status="Request cancelled here, but its recovery record could not be cleared. Reopening may show the old plan; it still requires approval.";
+        } else if (res.work.type == muse::Task::model_download) {
+          view.downloading_model=false;
+          view.screen=muse::Screen::models;
+          if (res.rc) { view.error=res.error; view.status="Download stopped. Previous selection retained."; }
+          else if (!exit_pending) {
+            pending_config=cfg;
+            snprintf(pending_config.coding_model_path,sizeof pending_config.coding_model_path,"%s",res.path.c_str());
+            open_model_setup=true; apply_settings();
+          }
         } else if (res.work.type == muse::Task::configure) {
           if (res.configuration_applied) {
             cfg=res.work.configuration; configured=true; sync_mode();
@@ -341,7 +351,8 @@ int main() {
             else if (muse_config_save(config_path.c_str(),&cfg,config_error,sizeof config_error)) {
               fail(std::string("Mode applied, but settings could not be saved: ")+config_error);
             } else {
-              view.screen=muse::Screen::home;
+              view.screen=(open_model_setup || (view.local && !cfg.coding_model_path[0])) ? muse::Screen::models : muse::Screen::home;
+              open_model_setup=false;
               view.detail=home_detail();
               view.status=view.local?"All Local. Your requests and journals stay on this console.":"Hybrid with Muse. Local voice, companion development.";
             }
@@ -356,9 +367,14 @@ int main() {
           else if (res.backend.empty()) view.model = view.local ? "Local language model + Whisper tiny.en" : "Whisper tiny.en / Muse development";
           view.status = res.rc ? "Local engine unavailable; check diagnostics."
                                : "Local voice engines ready.";
+          view.model_ready=view.local && cfg.coding_model_path[0] && !res.rc && !res.coding_model_unavailable;
           if (res.rc) {
             view.detail = res.error;
             view.screen = muse::Screen::error;
+          } else if (view.local && !view.model_ready) {
+            view.screen=muse::Screen::models;
+            view.status="Local speech is ready; select a coding model for Local lab.";
+            view.error=res.coding_model_unavailable ? res.error : "";
           }
         } else if (res.work.type == muse::Task::speak) {
           if (!res.rc && res.work.generation == gate.generation &&
@@ -636,6 +652,7 @@ int main() {
     if (input.is_held(Action::page_prev) &&
         input.is_pressed(Action::page_next)) {
       exit_pending = true;
+      worker.model_transfer.cancel=true;
       local_run = false; worker.request_pause();
       worker.recording.store(false);
     }
@@ -654,11 +671,45 @@ int main() {
           snprintf(pending_config.build_mode,sizeof pending_config.build_mode,"local");
           snprintf(pending_config.hybrid_provider,sizeof pending_config.hybrid_provider,"muse");
           pending_config.phone_port=0;
+          open_model_setup=true;
           if (configured && !muse_config_validate(&pending_config,config_error,sizeof config_error)) apply_settings();
           else setup();
         }
       }
       if (input.is_pressed(Action::back) && configured) view.screen=muse::Screen::home;
+    } else if (view.screen==muse::Screen::models || view.screen==muse::Screen::model_url) {
+      if (view.downloading_model) {
+        const uint64_t total=worker.model_transfer.total.load(),received=worker.model_transfer.received.load();
+        view.status=total ? "Downloaded "+std::to_string(received/1048576)+" / "+std::to_string(total/1048576)+" MiB" : "Checking model metadata over HTTPS...";
+        if(input.is_pressed(Action::back)) {worker.model_transfer.cancel=true;view.status="Cancelling; waiting for the active network read.";}
+      } else if (!view.busy) {
+        bool start=false;std::string url;
+        if(view.screen==muse::Screen::models) {
+          if(input.is_pressed(Action::confirm)){url=muse::recommended_model_url();start=true;}
+          if(input.is_pressed(Action::west)){view.screen=muse::Screen::model_url;view.field="Hugging Face GGUF file URL";view.edit="https://huggingface.co/";view.error.clear();view.key=0;view.secret_edit=false;}
+          if(input.is_pressed(Action::page_next)&&view.model_ready){view.screen=muse::Screen::home;view.detail=home_detail();}
+          if(input.is_pressed(Action::back))modes();
+        } else {
+          const int count=int(strlen(muse::keyboard_keys()));
+          if(input.nav==Direction::left)view.key=(view.key+count-1)%count;
+          if(input.nav==Direction::right)view.key=(view.key+1)%count;
+          if(input.nav==Direction::up)view.key=(view.key+count-12)%count;
+          if(input.nav==Direction::down)view.key=(view.key+12)%count;
+          if(input.is_pressed(Action::confirm)&&view.edit.size()<2048)view.edit+=muse::keyboard_keys()[view.key];
+          if(input.is_pressed(Action::west)&&!view.edit.empty())view.edit.pop_back();
+          if(input.is_pressed(Action::back))view.screen=muse::Screen::models;
+          if(input.is_pressed(Action::page_next)){url=view.edit;start=true;}
+        }
+        if(start){
+          std::string normalized;
+          if(!muse::model_hf_url(url,normalized))view.error="Enter a public Hugging Face GGUF file link, including its filename.";
+          else {
+            muse::Work w;w.type=muse::Task::model_download;w.generation=gate.generation;w.text=normalized;
+            worker.model_transfer.cancel=false;worker.model_transfer.received=0;worker.model_transfer.total=0;
+            if(worker.submit(w)){view.screen=muse::Screen::models;view.downloading_model=true;view.error.clear();view.status="Connecting securely to Hugging Face...";}
+          }
+        }
+      }
     } else if (view.screen==muse::Screen::connections) {
       // The endpoint is the user's Opti3 relay; this is not account pairing.
       if (view.connection_muse && (input.is_pressed(Action::confirm) || input.is_pressed(Action::west)) && !view.busy) {

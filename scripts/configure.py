@@ -104,6 +104,7 @@ def main():
         "firmware_reported": collect("PS5_FIRMWARE", "Installed firmware, e.g. 12.40"),
         "inference_backend": os.environ.get("MUSE_INFERENCE_BACKEND", "auto"),
         "speech_mode": os.environ.get("MUSE_SPEECH_MODE", "neural"),
+        "coding_model_path": os.environ.get("MUSE_CODING_MODEL_PATH", ""),
         "install_helper_path": os.environ.get("MUSE_INSTALL_HELPER_PATH", ""),
         "installer_artifact_dir": os.environ.get("MUSE_INSTALLER_ARTIFACT_DIR", ""),
         "installer_log_dir": os.environ.get("MUSE_INSTALLER_LOG_DIR", ""),
@@ -128,7 +129,7 @@ def main():
         raise ValueError("MUSE_SPEECH_MODE must be neural or espeak")
     if config["install_helper_path"]:
         absolute_path(config["install_helper_path"])
-    for name in ("installer_artifact_dir", "installer_log_dir"):
+    for name in ("installer_artifact_dir", "installer_log_dir", "coding_model_path"):
         if config[name]:
             absolute_path(config[name])
     if config["firmware_reported"] != "12.40":
@@ -144,7 +145,7 @@ def main():
         stream.write("\n")
     print(f"Wrote {args.output} in {mode} mode; console capabilities remain unverified.")
     if local:
-        print("Local mode keeps jobs and logs on the console and disables HTTP/phone uploads.")
+        print("Local mode keeps jobs and logs on the console; only explicit model setup downloads use the internet.")
     elif provider == "codex":
         print("Codex device pairing is not implemented; this mode cannot submit builds yet.")
 

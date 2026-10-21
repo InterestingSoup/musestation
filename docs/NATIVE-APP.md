@@ -10,9 +10,15 @@ on Linux Mesa software rendering; their frame rate/status values are fixtures.
 
 ## Current Hybrid-first source
 
-The 01.005.000 candidate is compile- and package-verified in Docker; see
+The earlier 01.005.000 inventory candidate is compile- and package-verified in Docker; see
 [BUILD-REPORT-INVENTORY.md](BUILD-REPORT-INVENTORY.md). The inventory and runtime
 loading changes have no on-console verification.
+
+The 01.006.000 source makes the coding model an [optional setup download](LOCAL-MODELS.md).
+Whisper, Qwen3-TTS/projector and eSpeak stay bundled. Local setup can download the
+recommended coder or a compatible public Hugging Face GGUF file over HTTPS;
+normal Local jobs remain offline. Downloaded weights and selection live outside
+the app bundle. Direct console downloads still require hardware testing.
 
 New source selects Hybrid with Muse first and keeps Local lab experimental.
 Hybrid loads Whisper and speech without the coding LLM; transcripts go to Muse
@@ -32,10 +38,10 @@ The following local feature and package inventory also applies to the preserved
 
 ## Experimental local operation
 
-New installations open a creation-mode picker. All Local works with typed requests
-and bundled models without a LAN address or account. Its optional microphone field
+New installations open a creation-mode picker. Local lab works with typed requests
+and an optional downloaded coding model without a relay address or account. Its optional microphone field
 accepts the actual AudioIn module path; leave it blank for typed creation. Local
-jobs are approved with their compute budget, checkpointed, repaired by the bundled
+jobs are approved with their compute budget, checkpointed, repaired by the selected
 model, validated and saved in the project library. Play is an additional explicit
 controller action. These apps run inside MuseStation through the restricted
 [Lua runtime](LOCAL-APPS.md); a native compiler and package builder do not run on
@@ -66,8 +72,8 @@ has occurred.
 - Native fullscreen home, plan, setup, progress and error screens.
 - DualSense R2 push-to-talk through sceAudioIn, 48 kHz PCM16 mono. Mute/no-device
   fails visibly. Capture, inference and networking run off the rendering thread.
-- Bundled Qwen2.5-Coder 1.5B Q4_K_M, Whisper tiny.en, Qwen3-TTS 0.6B with its
-  projector, eSpeak NG voice data and component licenses. The native executable
+- Bundled Whisper tiny.en, Qwen3-TTS 0.6B with its projector, eSpeak NG voice data
+  and component licenses. The coding model is downloaded separately for Local lab. The native executable
   links real Vulkan/RADV inference and OpenGL graphics. Automatic GPU selection,
   explicit CPU recovery and required-Vulkan policies are configurable. PS5LM HTTP
   remains an optional fallback; the standalone PS5LM application is not required.

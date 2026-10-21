@@ -21,11 +21,13 @@ def valid(path, item):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--include-codegen", action="store_true", help="Also fetch optional coder for developer inference tests")
     parser.add_argument("--output", type=Path, default=ROOT / "assets" / "inference")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = json.loads((ROOT / "inference" / "lock.json").read_text())
-    for item in manifest["models"]:
+    models = [m for m in manifest["models"] if args.include_codegen or m.get("bundled", True)]
+    for item in models:
         dest = args.output / item["name"]
         if not valid(dest, item):
             url = f"https://huggingface.co/{item['repo']}/resolve/{item['revision']}/{item['name']}?download=true"
@@ -41,7 +43,7 @@ def main():
         print(f"SHA256 {item['sha256']}  {dest}", flush=True)
     licenses = args.output / "licenses"
     shutil.copytree(ROOT / "inference" / "licenses", licenses, dirs_exist_ok=True)
-    (args.output / "models.json").write_text(json.dumps(manifest["models"], indent=2) + "\n")
+    (args.output / "models.json").write_text(json.dumps(models, indent=2) + "\n")
 
 if __name__ == "__main__":
     main()

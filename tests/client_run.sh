@@ -10,7 +10,7 @@ for unit in client client_sha256 client_install client_install_paths client_inst
     -c "src/$unit.c" -o "dist/host-$unit.o"
 done
 clang++-18 -std=c++20 -Wall -Wextra -Werror -Wno-unused-private-field -O1 -g -fsanitize=address,undefined \
-  -Isrc -Inative/src -Ivendor/native-ui/src -pthread native/src/worker.cpp tests/client_worker_test.cpp \
+  -Isrc -Inative/src -Ivendor/native-ui/src -pthread native/src/worker.cpp native/src/model_download.cpp tests/no_model_network.cpp tests/client_worker_test.cpp \
   dist/host-client.o dist/host-client_install.o dist/host-client_install_paths.o dist/host-client_install_fds.o dist/host-client_sha256.o dist/host-config.o dist/host-json.o dist/host-log.o dist/host-local_job.o build/local-app/host/libmuse-local-app.a \
   -lm -ldl -o dist/worker-test
 python3 tests/client_fixture.py ./dist/client-test ./dist/worker-test

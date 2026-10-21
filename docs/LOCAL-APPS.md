@@ -6,6 +6,9 @@ approval and files. A generated revision must pass validation before being saved
 as a runnable revision; validation does not prove game quality or every input path.
 The user separately chooses to run it.
 
+In 01.006.000, the coding model is an [optional setup download](LOCAL-MODELS.md),
+separate from bundled speech. Once downloaded, local generation runs offline.
+
 ## Program contract
 
 Provide raw Lua 5.4 source, at most 65,536 bytes, with global `update(dt, input)` and

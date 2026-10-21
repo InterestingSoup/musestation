@@ -8,7 +8,9 @@ installation and launch. This supersedes the earlier Bluetooth companion proposa
 ## Product behavior
 
 New configurations default to Hybrid/Muse with the phone listener disabled.
-Hybrid does not load the coding model or draft plans. It submits a local transcript
+The 01.006.000 package includes speech and leaves the coder as an
+[optional Local setup download](LOCAL-MODELS.md). Hybrid does not load the coding
+model or draft plans. It submits a local transcript
 or typed request, retains a pending plan across restarts, and displays Muse's
 response when available. Adding detail includes the parent plan ID/revision.
 Nothing builds before explicit approval of the returned plan. Voice approval

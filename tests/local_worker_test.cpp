@@ -9,13 +9,18 @@
 #include <cstring>
 #include <sys/stat.h>
 #include <unistd.h>
+void test_enable_model_network(bool);
 static std::atomic<int> calls{0}, behavior{0};
 static uint32_t initial_seed=0;
-struct muse_inference {};
+struct muse_inference { bool llm; };
+static int voice_only_starts=0;
 extern "C" int sceUserServiceGetInitialUser(int *) { return -1; }
-extern "C" muse_inference *muse_inference_create(const muse_inference_config *cfg,char *,size_t){assert(cfg->llm_model&&*cfg->llm_model);return new muse_inference;}
+extern "C" muse_inference *muse_inference_create(const muse_inference_config *cfg,char *error,size_t cap){
+ if(cfg->llm_model&&strstr(cfg->llm_model,"bad-coder")){snprintf(error,cap,"Unsupported model fixture");return nullptr;}
+ bool llm=cfg->llm_model&&*cfg->llm_model;if(!llm)++voice_only_starts;return new muse_inference{llm};
+}
 extern "C" void muse_inference_destroy(muse_inference *p){delete p;}
-extern "C" int muse_inference_draft(muse_inference *,const char *,char *out,size_t cap,char *,size_t){snprintf(out,cap,"Make a counter with Cross controls. Draw it in large type.");return 0;}
+extern "C" int muse_inference_draft(muse_inference *engine,const char *,char *out,size_t cap,char *error,size_t error_cap){if(!engine->llm){snprintf(error,error_cap,"coding model missing");return -1;}snprintf(out,cap,"Make a counter with Cross controls. Draw it in large type.");return 0;}
 extern "C" int muse_inference_transcribe(muse_inference *,const int16_t *,size_t,int,char *,size_t,char *,size_t){return -1;}
 extern "C" int muse_inference_speak(muse_inference *,const char *,const char *,char *,size_t){return -1;}
 extern "C" int muse_inference_classify(muse_inference *,const char *,const char *,muse_local_intent *,char *,size_t){return -1;}
@@ -47,6 +52,7 @@ int main(int argc,char **argv){
   snprintf(cfg.artifact_dir,sizeof cfg.artifact_dir,"%s",argv[1]);
   snprintf(cfg.log_dir,sizeof cfg.log_dir,"%s/logs",argv[1]);
   snprintf(cfg.model_dir,sizeof cfg.model_dir,"%s/models",argv[1]);
+  snprintf(cfg.coding_model_path,sizeof cfg.coding_model_path,"%s/coder.gguf",argv[1]);
   snprintf(cfg.server_url,sizeof cfg.server_url,"http://127.0.0.1:%s",argv[2]);
   // Upgrade an explicitly saved Local config with a remembered Muse endpoint
   // and private spool. The new Hybrid default must not enable either transport.
@@ -55,7 +61,7 @@ int main(int argc,char **argv){
   assert(!muse_config_save(config_path,&cfg,config_error,sizeof config_error));
   muse_config loaded{};muse_config_defaults(&loaded);assert(!muse_config_local(&loaded));
   assert(!muse_config_load(config_path,&loaded,config_error,sizeof config_error));
-  assert(muse_config_local(&loaded)&&!loaded.phone_port&&!strcmp(loaded.server_url,cfg.server_url));cfg=loaded;
+  assert(muse_config_local(&loaded)&&!loaded.phone_port&&!strcmp(loaded.server_url,cfg.server_url)&&!strcmp(loaded.coding_model_path,cfg.coding_model_path));cfg=loaded;
   assert(!mkdir(cfg.log_dir,0700));const std::string private_dir=std::string(cfg.log_dir)+"/local";
   assert(!mkdir(private_dir.c_str(),0700));const std::string private_spool=private_dir+"/pending.jsonl";
   FILE *private_file=fopen(private_spool.c_str(),"wb");assert(private_file);fputs("{\"event\":\"retained-private-before-upgrade\"}\n",private_file);assert(!fclose(private_file));
@@ -74,6 +80,8 @@ int main(int argc,char **argv){
   w.id=r.local_job.id;w.revision="not-the-approved-plan";w.type=muse::Task::local_approve;assert(send(worker,w).rc);
   w.revision=r.local_job.revision;r=send(worker,w);assert(!r.rc&&r.local_job.state==MUSE_LOCAL_QUEUED);
   auto job=w;
+  w.type=muse::Task::model_download;w.text="https://huggingface.co/fixture/model/resolve/main/coder.gguf";
+  r=send(worker,w);assert(r.rc&&r.path.empty()); // Active approval cannot change its model.
   w.type=muse::Task::configure;w.configuration=cfg;r=send(worker,w);assert(r.rc&&!r.configuration_applied);
   w=job;w.type=muse::Task::local_step;r=send(worker,w);assert(!r.rc&&r.local_job.state==MUSE_LOCAL_QUEUED&&r.local_job.next_phase==MUSE_LOCAL_VALIDATE);
   r=send(worker,w);assert(!r.rc&&r.local_job.state==MUSE_LOCAL_QUEUED&&r.local_job.next_phase==MUSE_LOCAL_GENERATE&&strstr(r.local_job.detail,"forbidden"));
@@ -93,6 +101,23 @@ int main(int argc,char **argv){
   w.type=muse::Task::local_resume;assert(send(worker,w).rc);
   w.type=muse::Task::configure;w.configuration=cfg;r=send(worker,w);assert(!r.rc&&r.configuration_applied&&!r.needs_init);
   w.type=muse::Task::local_list;r=send(worker,w);assert(!r.rc&&r.local_jobs.size()==3);
+  // No optional coder and an incompatible selected coder both preserve voice initialization.
+  w.type=muse::Task::configure;w.configuration=cfg;w.configuration.coding_model_path[0]=0;
+  r=send(worker,w);assert(!r.rc&&r.needs_init);
+  w.type=muse::Task::init;r=send(worker,w);assert(!r.rc&&!r.coding_model_unavailable);
+  w.type=muse::Task::local_create;w.text="No coder";r=send(worker,w);assert(r.rc&&r.error.find("coding model missing")!=std::string::npos);
+  w.type=muse::Task::configure;w.configuration=cfg;strcpy(w.configuration.coding_model_path,"/models/bad-coder.gguf");
+  r=send(worker,w);assert(!r.rc&&r.needs_init);
+  w.type=muse::Task::init;r=send(worker,w);assert(!r.rc&&r.coding_model_unavailable&&r.error=="Unsupported model fixture");
+  assert(voice_only_starts==2);
+  test_enable_model_network(true);
+  w.type=muse::Task::model_download;w.text="https://huggingface.co/fixture/model/resolve/main/coder.gguf";
+  r=send(worker,w);assert(!r.rc&&!r.path.empty());
+  w.type=muse::Task::configure;w.configuration=cfg;
+  snprintf(w.configuration.coding_model_path,sizeof w.configuration.coding_model_path,"%s",r.path.c_str());
+  r=send(worker,w);assert(!r.rc&&r.needs_init);
+  w.type=muse::Task::init;r=send(worker,w);assert(!r.rc&&!r.coding_model_unavailable);
+  test_enable_model_network(false);
   w.type=muse::Task::configure;w.configuration=cfg;strcpy(w.configuration.log_dir,"/proc/muse-cannot-create");r=send(worker,w);assert(r.rc&&r.configuration_applied);
   w.type=muse::Task::stop;assert(!send(worker,w).rc);worker.join();
   private_file=fopen(private_spool.c_str(),"rb");assert(private_file);char first_line[128]{};

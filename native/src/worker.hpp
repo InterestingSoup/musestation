@@ -7,6 +7,7 @@ extern "C" {
 #include "log.h"
 #include "local_job.h"
 }
+#include "model_download.hpp"
 #include <atomic>
 #include <pthread.h>
 #include <string>
@@ -32,6 +33,7 @@ enum class Task {
   flush,
   retry,
   configure,
+  model_download,
   local_create,
   local_load,
   local_list,
@@ -61,6 +63,7 @@ struct Result {
   muse_install_status install{};
   muse_local_job local_job{};
   std::vector<muse_local_job> local_jobs;
+  bool coding_model_unavailable = false;
   bool needs_init = false, configuration_applied = false, plan_retryable = false;
 };
 class Worker {
@@ -76,6 +79,7 @@ public:
   void join() { pthread_join(thread, nullptr); }
   std::atomic<uint64_t> phone_generation{0};
   static int phone_submit(void *context, const char *path);
+  ModelTransfer model_transfer;
   std::atomic<bool> recording{false};
   std::atomic<float> meter{0};
 

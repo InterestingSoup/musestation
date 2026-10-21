@@ -11,6 +11,7 @@ struct muse_config {
     char relay_token[65], shadowmount_url[256];
     char log_dir[512], artifact_dir[512], model_dir[512], audio_in_module[512];
     char install_helper_path[512];
+    char coding_model_path[512]; /* Optional downloaded GGUF, outside the app bundle. */
     char installer_artifact_dir[512], installer_log_dir[512];
     char inference_backend[24], speech_mode[16];
     char model[128], firmware_reported[32];

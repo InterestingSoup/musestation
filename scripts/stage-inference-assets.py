@@ -13,7 +13,8 @@ DESTINATION = ROOT / "build/native/title/PPSA99576/assets/inference"
 def main():
     language = json.loads((ROOT / "inference/lock.json").read_text())
     neural = json.loads((ROOT / "inference/neural-lock.json").read_text())
-    models = language["models"] + neural["models"]
+    speech = [m for m in language["models"] if m.get("bundled", True)]
+    models = speech + neural["models"]
     names = set()
     for model in models:
         name = model["name"]
@@ -35,7 +36,7 @@ def main():
         shutil.copy2(SOURCE / model["name"], DESTINATION / model["name"])
     for directory in ("espeak-ng-data", "licenses"):
         shutil.copytree(SOURCE / directory, DESTINATION / directory, dirs_exist_ok=True)
-    (DESTINATION / "models.json").write_text(json.dumps(language["models"], indent=2) + "\n")
+    (DESTINATION / "models.json").write_text(json.dumps(speech, indent=2) + "\n")
     (DESTINATION / "neural-models.json").write_text(json.dumps(neural, indent=2) + "\n")
     print(json.dumps({"active_models": sorted(names), "model_bytes": sum(m["bytes"] for m in models)}))
 

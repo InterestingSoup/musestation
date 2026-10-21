@@ -93,6 +93,14 @@ int main(int argc, char **argv) {
   auto v=base(); add("screen-0",v);
   v=base(); v.screen=muse::Screen::plan;
   v.job_budget="Attempts 0/512  |  Active time 0/604800 seconds"; add("screen-1",v);
+  v=base(); v.local=true; v.screen=muse::Screen::models;
+  v.status="Speech ready. No coding model downloaded.";
+  add("optional-model-setup",v);
+  v.downloading_model=true; v.status="Downloaded 512 / 1065 MiB";
+  add("optional-model-downloading",v);
+  v=base(); v.local=true; v.screen=muse::Screen::model_url;
+  v.field="Hugging Face GGUF file URL"; v.edit="https://huggingface.co/Qwen/";
+  add("optional-model-url",v);
   v=base(); v.screen=muse::Screen::setup; v.field="AudioIn module path";
   v.step_count=1; v.field_index=0; add("screen-2",v);
   v=base(); v.screen=muse::Screen::working; v.local=false; v.provider="Muse";

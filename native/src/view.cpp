@@ -25,7 +25,7 @@ void pill(gfx::DrawList &d, const ui::FontRef &f, const std::string &s, float x,
 } // namespace
 const char *keyboard_keys() {
   return "1234567890qwertyuiopasdfghjkl:zxcvbnm./-_ "
-         "@[]ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+         "@[]ABCDEFGHIJKLMNOPQRSTUVWXYZ?=%&";
 }
 void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
             int height, unsigned framebuffer) {
@@ -46,12 +46,13 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
   d.line(132, 79, 132, 99, 3, gfx::Color::rgb(0x102d30));
   label(d, f.semibold, "MuseStation", 160, 103, 40, white);
   label(d, f.regular, "YOUR CONSOLE. YOUR IDEAS.", 470, 98, 19, muted);
-  pill(d, f.regular, v.local ? "All Local  /  Offline" : "Hybrid  /  " + v.provider, 1454, 70, 370);
+  pill(d, f.regular, (v.screen == Screen::models || v.screen == Screen::model_url) ? "Model setup  /  Internet download" : v.local ? "All Local  /  Offline" : "Hybrid  /  " + v.provider, 1454, 70, 370);
   const bool request = v.screen == Screen::request;
-  const bool setup = v.screen == Screen::setup || request;
+  const bool setup = v.screen == Screen::setup || request || v.screen == Screen::model_url;
   label(d, f.semibold,
         request                           ? "DESCRIBE YOUR APP"
         : setup                           ? "MAKE YOURSELF AT HOME"
+        : v.screen == Screen::models      ? "OPTIONAL LOCAL CODING MODEL"
         : v.screen == Screen::modes       ? "CHOOSE HOW TO CREATE"
         : v.screen == Screen::library     ? "YOUR LOCAL PROJECTS"
         : v.screen == Screen::connections ? "CONNECT A DEVELOPMENT PARTNER"
@@ -63,6 +64,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
   std::string title =
       request                           ? v.field.empty() ? "What should we make?" : v.field
       : setup                           ? v.field
+      : v.screen == Screen::models      ? "Choose your local model."
       : v.screen == Screen::modes       ? "Your idea. Muse builds it."
       : v.screen == Screen::library     ? "Your ideas, kept here."
       : v.screen == Screen::connections ? v.connection_muse ? "Connect with Muse." : "More ways to create."
@@ -77,11 +79,12 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
   if (setup) {
     label(d, f.regular,
           request ? "D-pad selects a key. X types it. R1 prepares a plan."
+          : v.screen == Screen::model_url ? "Enter the file link. R1 downloads it; Circle returns without downloading."
           : "Step " + std::to_string(v.field_index + 1) +
               " of " + std::to_string(v.step_count) + "  /  D-pad selects a key. X types it. R1 continues.",
           96, 350, 27, muted);
     card(d, {96, 390, 1728, 95});
-    const char *empty_value = !request && (v.step_count==1 || v.field_index==4) ? "Optional: leave blank to use typed requests"
+    const char *empty_value = v.screen == Screen::model_url ? "https://huggingface.co/owner/repo/resolve/main/model.gguf" : !request && (v.step_count==1 || v.field_index==4) ? "Optional: leave blank to use typed requests"
                               : (v.field_index == 2 || v.field_index == 3)
                                   ? "Leave blank to use the bundled engines"
                                   : v.secret_edit ? "Enter your relay console token; it stays hidden" : "Enter a value";
@@ -96,18 +99,26 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
           126, 451, 30, v.edit.empty() ? muted : white);
     const char *keys = keyboard_keys();
     for (int i = 0; keys[i]; ++i) {
-      float x = 96 + float(i % 12) * 143, y = 520 + float(i / 12) * 67;
+      float x = 96 + float(i % 12) * 143, y = 520 + float(i / 12) * 58;
       bool focus = i == v.key;
-      d.rounded_rect({x, y, 129, 54}, 13, focus ? mint : panel);
+      d.rounded_rect({x, y, 129, 48}, 13, focus ? mint : panel);
       label(d, f.mono, std::string(1, keys[i]), x + 51, y + 37, 27,
             focus ? gfx::Color::rgb(0x102d30) : white);
     }
     label(d, f.regular, v.error, 96, 963, 24, gfx::Color::rgb(0xffb388));
+  } else if (v.screen == Screen::models) {
+    card(d,{96,380,1728,545});
+    label(d,f.semibold,"Qwen2.5-Coder 1.5B  /  Recommended",132,445,34,white);
+    ui::paragraph(d,f.regular,"Download 1.12 GB directly from Hugging Face. Stored on this console, outside the app bundle. Local creation works offline after setup.",132,510,29,1570,39,muted,3);
+    ui::paragraph(d,f.regular,"Custom: public, single-file Qwen2/Qwen3 ChatML GGUF, up to 1.5 GiB. Other architectures, split files and gated repositories are not supported.",132,640,26,1570,36,muted,3);
+    label(d,f.regular,v.model_ready?"A local model is selected. R1 returns to creation.":"Speech is included. A coding model is needed only for Local lab.",132,775,25,mint);
+    label(d,f.mono,f.mono.font->fit(v.status,23,1560),132,831,23,white);
+    if(!v.error.empty())ui::paragraph(d,f.regular,v.error,132,875,22,1560,28,gfx::Color::rgb(0xffb388),2);
   } else if (v.screen == Screen::modes) {
     const char *names[] = {"Hybrid with Muse", "Local lab", "Other providers"};
     const char *details[] = {
       "Speak on your PS5. Muse plans and develops a native app. Review the plan before approving a build.",
-      "Experimental offline creation. A small model builds apps that play inside MuseStation. Existing projects stay here.",
+      "Optional model download, then offline creation. Apps play inside MuseStation. Existing projects stay here.",
       "Bring your preferred development provider in a future release. Muse is the first integration."};
     for (int i=0; i<3; ++i) {
       float x=96+float(i)*584;
@@ -223,7 +234,9 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
   }
   d.line(96, 995, 1824, 995, 1, muted.with_alpha(.25f));
   label(d, f.regular,
-        setup ? "X  Type     Square  Delete     R1  Continue     Circle  Back"
+        v.screen == Screen::model_url ? "X  Type     Square  Delete     R1  Download     Circle  Back"
+        : setup ? "X  Type     Square  Delete     R1  Continue     Circle  Back"
+        : v.screen == Screen::models ? v.downloading_model ? "Circle  Cancel download" : v.model_ready ? "X  Download recommended     Square  Custom URL     R1  Continue     Circle  Modes" : "X  Download recommended     Square  Custom URL     Circle  Modes"
         : v.screen == Screen::modes ? v.mode_choice==1 ? "Left / Right  Mode     Up / Down  Budget     X  Select     Circle  Back" : "Left / Right  Mode     X  Select     Circle  Back"
         : v.screen == Screen::library ? "D-pad  Choose     X  Open project     Circle  Back"
         : v.screen == Screen::connections ? v.connection_muse ? "X / Square  Configure relay     Circle  Back" : "Circle  Back     Provider connection unavailable"

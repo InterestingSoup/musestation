@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory() as tmp:
     path = pathlib.Path(tmp) / "local.json"
     subprocess.run(["python3", "scripts/configure.py", "--output", str(path)], env=base | {"MUSE_BUILD_MODE": "local"}, stdin=subprocess.DEVNULL, check=True)
     local = json.loads(path.read_text())
-    assert local["build_mode"] == "local" and local["phone_port"] == 0
+    assert local["build_mode"] == "local" and local["phone_port"] == 0 and local["coding_model_path"] == ""
     assert not any(local[k] for k in ("server_url", "console_ip", "audio_in_module", "ps5lm_url", "speech_url"))
     assert all(v["user_reported"] == "unknown" and not v["verified"] for v in local["payloads"].values())
     assert path.stat().st_mode & 0o777 == 0o600
