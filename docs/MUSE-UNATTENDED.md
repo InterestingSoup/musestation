@@ -180,7 +180,7 @@ Read `GET /provider/outbox?after=<normal-cursor>`. Exact message schemas are in
 | Event | Connector action |
 |---|---|
 | `request` | Generate a 2–4 sentence plan, then submit it to `/provider/plans`. If planning cannot succeed, submit the documented `plan_error`. |
-| `approved_job` | Generate C++ source for that exact approved text, job ID and revision; submit to `/provider/sources`. Follow the [native source contract](https://raw.githubusercontent.com/moiz-qureshi/musestation/main/relay/build/README.md). |
+| `approved_job` | Generate C++ source for that exact approved text, job ID and revision; submit to `/provider/sources`. Follow the [native source contract](https://raw.githubusercontent.com/InterestingSoup/musestation/main/relay/build/README.md). |
 | `result` | Persist the raw result JSON. Retrieve and verify available diagnostics; report package fields directly from the matching event. A failed build needs a fresh request and explicit approval before revised source can run. |
 | `logs` | Retrieve and preserve the referenced JSONL with its request/job context where available. |
 

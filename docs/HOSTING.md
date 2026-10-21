@@ -14,7 +14,7 @@ Intended hostname: `musestation.interestingsoup.com`.
 
    | Type | Name | Target | Proxy |
    |---|---|---|---|
-   | CNAME | musestation | moiz-qureshi.github.io | DNS only during GitHub certificate setup |
+   | CNAME | musestation | interestingsoup.github.io | DNS only during GitHub certificate setup |
 
 4. Wait for GitHub's DNS check and certificate provisioning, then enable HTTPS
    enforcement.

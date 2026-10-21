@@ -15,9 +15,9 @@ What I'm working toward:
 I'd love feedback from Muse gadget builders on the smoothest connector/setup experience, and from PS5 homebrew developers with first-hand payload compatibility results for Slim firmware 12.40.
 
 Source, architecture and build evidence:
-https://github.com/moiz-qureshi/musestation
+https://github.com/InterestingSoup/musestation
 
 Mockup gallery:
-https://github.com/moiz-qureshi/musestation/tree/main/docs/mockups
+https://github.com/InterestingSoup/musestation/tree/main/docs/mockups
 
 What small app would you want to make from your couch?

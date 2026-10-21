@@ -6,7 +6,7 @@ The worker is a trusted service with host Docker privileges. Do not expose its
 private data directory or modify its code through the provider exchange.
 
 The application, this stack and the website now share
-[`moiz-qureshi/musestation`](https://github.com/moiz-qureshi/musestation).
+[`InterestingSoup/musestation`](https://github.com/InterestingSoup/musestation).
 Clone that repository on your Docker host; the existing Opti3 deployment keeps
 its directory name `ps5-muse`. A Git push does not restart or update running
 containers. See [repository layout and update procedure](REPOSITORY.md).

@@ -1,7 +1,7 @@
 # Repository and deployment layout
 
 The canonical repository is
-[moiz-qureshi/musestation](https://github.com/moiz-qureshi/musestation).
+[InterestingSoup/musestation](https://github.com/InterestingSoup/musestation).
 It contains both the application and the website. Its first two commits contained
 only the landing page; the consolidation adds the existing development source
 without replacing that history.

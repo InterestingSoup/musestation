@@ -10,7 +10,7 @@ Checked 2026-10-19. This records website checks, not PS5 hardware testing.
   mode tabs and arrow-key mode navigation checked.
 - No browser console errors observed during those interaction checks.
 - Initial GitHub Pages workflow completed successfully:
-  [deployment run](https://github.com/moiz-qureshi/musestation/actions/runs/39362917076).
+  [deployment run](https://github.com/InterestingSoup/musestation/actions/runs/39362917076).
 - All seven deployed HTML/CSS/JS/image/metadata resources returned HTTP 200 and
   matched the local source bytes before custom-domain activation.
 

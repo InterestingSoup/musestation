@@ -308,7 +308,7 @@ Useful next contributions are connector setup and recovery improvements, first-h
 and feedback on the controller flow and setup experience. Include exact
 firmware/payload versions and distinguish a host test from a console result.
 
-[Open an issue](https://github.com/moiz-qureshi/musestation/issues) with an idea or
+[Open an issue](https://github.com/InterestingSoup/musestation/issues) with an idea or
 reproducible finding. For community introductions, there is a
 [ready-to-copy Discord draft](docs/discord-post.txt) and
 [mockup gallery](docs/mockups/README.md).
@@ -324,7 +324,7 @@ reproducible finding. For community introductions, there is a
 For a fresh checkout on a Linux x86-64 Docker host:
 
 ```sh
-git clone https://github.com/moiz-qureshi/musestation.git
+git clone https://github.com/InterestingSoup/musestation.git
 cd musestation
 bash scripts/build.sh
 ```

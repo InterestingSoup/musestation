@@ -90,8 +90,8 @@ The completed test job is immutable and is no longer exposed by the public route
    Read `GET /provider/outbox?after=0` and select its exact `approved_job` event.
    The plan is already accepted and approved in the fixture. Do not submit a new
    plan or attempt to approve anything.
-2. Read the [native source contract](https://github.com/moiz-qureshi/musestation/blob/main/relay/build/README.md#muse-source-contract)
-   ([raw text fallback](https://raw.githubusercontent.com/moiz-qureshi/musestation/main/relay/build/README.md))
+2. Read the [native source contract](https://github.com/InterestingSoup/musestation/blob/main/relay/build/README.md#muse-source-contract)
+   ([raw text fallback](https://raw.githubusercontent.com/InterestingSoup/musestation/main/relay/build/README.md))
    and [graphics example](../relay/build/example/main.cpp). Produce the actual
    source for the event's approved counter plan: one large fullscreen number,
    initially zero; Cross increments once per press, Square resets, Circle exits.
