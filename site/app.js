@@ -77,6 +77,19 @@
       if (next !== undefined) { event.preventDefault(); selectTab(tabs[next]); tabs[next].focus(); }
     });
   });
+  const heroWord = document.querySelector("#hero-word");
+  const heroWords = ["playing.", "creating.", "using.", "building.", "prototyping.", "sharing.", "showing off.", "keeping.", "your time."];
+  if (heroWord && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    let wordIndex = 0;
+    setInterval(() => {
+      if (document.hidden) return;
+      heroWord.classList.add("is-out");
+      setTimeout(() => {
+        wordIndex = (wordIndex + 1) % heroWords.length;
+        heroWord.textContent = heroWords[wordIndex]; heroWord.classList.remove("is-out");
+      }, 320);
+    }, 2400);
+  }
   window.addEventListener("pagehide", cleanup);
   document.documentElement.dataset.enhanced = "true";
 })();
