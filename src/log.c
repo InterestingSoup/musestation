@@ -36,7 +36,9 @@ static int mkdirs(const char *path){
         *p=ch;if(!ch)break;
     }return 0;
 }
-static int regular(int fd){struct stat st;return fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_nlink!=1?-1:0;}
+/* Regular file only. No link-count check: a PS5 12.40 title's fstat does not
+ * report st_nlink as 1 for its own private files; O_NOFOLLOW and 0700 parents remain. */
+static int regular(int fd){struct stat st;errno=0;return fstat(fd,&st)||!S_ISREG(st.st_mode)?-1:0;}
 static int repair_fd(int fd){
     struct stat st;if(fstat(fd,&st)||st.st_size<0||st.st_size>8*1024*1024)return -1;
     off_t end=st.st_size,keep=0;char block[4096];

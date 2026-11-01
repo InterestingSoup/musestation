@@ -177,7 +177,7 @@ static int pending_save(struct muse_client *c,const char *id,const char *transcr
     int n=snprintf(body,PENDING_MAX,"{\"server\":%s,\"id\":\"%s\",\"transcript\":%s,\"request\":%s}\n",qs,id,qt,request?request:"null");
     if(n<0||(unsigned)n>=PENDING_MAX){free(body);return fail(c,"Cannot encode pending request");}
     snprintf(tmp,sizeof(tmp),"%s.tmp",path);if(unlink(tmp)&&errno!=ENOENT){free(body);return fail(c,"Cannot remove stale pending-plan checkpoint");}int fd=open(tmp,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);if(fd<0){free(body);return fail(c,"Cannot checkpoint pending Muse request");}
-    struct stat st;int bad=fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_nlink!=1;
+    struct stat st;int bad=fstat(fd,&st)||!S_ISREG(st.st_mode); /* no st_nlink check; see log.c regular() */
     size_t used=0;while(!bad&&used<(size_t)n){ssize_t w=write(fd,body+used,(size_t)n-used);if(w<0&&errno==EINTR)continue;if(w<=0)bad=1;else used+=(size_t)w;}free(body);
     if(!bad&&fsync(fd))bad=1;if(close(fd))bad=1;if(bad||rename(tmp,path)){unlink(tmp);return fail(c,"Cannot commit pending Muse request");}return pending_sync(c);
 }
@@ -185,7 +185,7 @@ static int pending_read(struct muse_client *c,struct muse_plan *plan,char **requ
     memset(plan,0,sizeof(*plan));if(request)*request=NULL;if(network_allowed(c))return -1;char path[1024];if(pending_path(c,path))return -1;
     int fd=open(path,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);if(fd<0)return errno==ENOENT?MUSE_CLIENT_NO_PENDING:fail(c,"Cannot open pending Muse request");
     char *data=malloc(PENDING_MAX);if(!data){close(fd);return fail(c,"Cannot allocate pending request");}
-    struct stat st;int bad=fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_size<=0||st.st_size>=(off_t)PENDING_MAX;size_t used=0;
+    struct stat st;int bad=fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_size<=0||st.st_size>=(off_t)PENDING_MAX;size_t used=0;
     while(!bad&&used<(size_t)st.st_size){ssize_t n=read(fd,data+used,(size_t)st.st_size-used);if(n<0&&errno==EINTR)continue;if(n<=0)bad=1;else used+=(size_t)n;}close(fd);
     struct muse_json j;char server[512];struct muse_plan p={0};
     if(bad||muse_json_parse(&j,data,used)||field(&j,"server",server,sizeof(server))||field(&j,"id",p.id,sizeof(p.id))||!id_ok(p.id)||field(&j,"transcript",p.transcript,sizeof(p.transcript))){free(data);return fail(c,"Pending Muse request is corrupt; no plan was recovered");}
