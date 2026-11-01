@@ -26,7 +26,8 @@ Inventory checks below require the 01.005.000 candidate and matching relay.
    saved to `logs/hello-console.log` on the deployment host. Silence alone is not
    proof of a crash because stdout return depends on the loader. Do not send native eboot.elf
    to the ELF loader: it is an intermediate title executable.
-4. Install the single MuseStation.pkg through the confirmed native installer.
+4. Install `PPSA99576.zip` through ProsperoStore's custom catalog
+   `https://musestation.interestingsoup.com/api/v1/`, or copy its `PPSA99576` folder to `/data/homebrew` (see the README).
    Confirm the title launches, displays MuseStation, accepts the DualSense and
    stays responsive while its bundled engines initialize. Package extraction and
    SELF checks on the build host do not establish console acceptance.
@@ -39,7 +40,7 @@ Inventory checks below require the 01.005.000 candidate and matching relay.
    Private configuration, relay keys and journals stay outside the bundle with
    private permissions (configuration/key files `0600`, private directories `0700`).
    The upstream [folder-install guidance](https://github.com/darkxex/ProsperoStore/blob/e8b9b09fcd54cce27ea1bcda99a57af9df0fb4b4/README.md#L103-L124)
-   is not a request to chmod an installed MuseStation PKG or a new ZIP deliverable.
+   applies to the `PPSA99576` app folder only; ProsperoStore sets `0777` itself.
 
 ShadowMountPlus 1.7beta4 includes a [12.40 offset entry](https://github.com/drakmor/ShadowMountPlus/blob/d7e35e6ce90abc6f9d0880ff40c2a5cc1fbfa075/src/sm_shellcore_offsets.inc#L435-L440).
 That establishes source coverage only. ProsperoStore's pinned README reports
@@ -107,8 +108,8 @@ provider/account screens must not claim a completed connection or show fabricate
 login codes. No account credentials belong on the console or in test logs.
 The inventory is only what SMP returns: it supplies no boot/generation or
 completeness/freshness attestation and may omit unavailable registrations. Do not
-treat an absent ID as permission to replace an existing title. ZIP delivery and
-updates are deferred; no ZIP installation/update smoke pass is claimed here.
+treat an absent ID as permission to replace an existing title. MuseStation itself
+ships as a ZIP; in-store updates and generated-app ZIP delivery have no smoke pass yet.
 
 ## Voice and GPU checks
 

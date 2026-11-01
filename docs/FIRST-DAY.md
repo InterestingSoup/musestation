@@ -169,10 +169,9 @@ exact release filenames, hashes and results. If the exploit hangs or panics,
 follow its recovery instructions; do not choose a firmware-update recovery path.
 Homebrew needs reapplication after a full reboot.
 
-The loose-folder/ZIP route is a future option for MuseStation, not a shipped
-fallback in this release. ProsperoStore's folder instructions do not turn the
-MuseStation `.pkg` into an installable folder. See [research](RESEARCH.md) and
-[packaging](PACKAGING.md).
+MuseStation installs as a loose folder (`PPSA99576.zip`) through ProsperoStore or
+by copying it to `/data/homebrew`; ProsperoStore does not install `.pkg` files. See
+the README install steps and [packaging](PACKAGING.md#zip-delivery-through-prosperostore).
 
 A concrete **initial-installer candidate**, rather than a confirmed 12.40 route,
 is [standalone PKG Manager v1.5.1](https://github.com/itsPLK/ps5-pkg-manager/releases/tag/v1.5.1).

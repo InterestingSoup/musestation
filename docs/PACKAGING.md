@@ -191,14 +191,35 @@ reserved `PPSA99000`. The standalone packager does not query console inventory.
 Fixture-provider compile/download evidence does not establish
 a live Muse connection or console installation.
 
-## Deferred ZIP delivery and updates
+## ZIP delivery through ProsperoStore
 
-The user deferred ZIP work. No MuseStation ZIP release, ZIP install endpoint or
-automatic folder updater is delivered by these changes. `.pkg` remains the
-artifact kind for the current relay. A future ZIP path has two purposes: a
-separately qualified loose-title installation route and controlled updates to an
-owned installation. It must preserve executable/metadata/assets as a real native
-title; renaming a payload or package to `.zip` is not that implementation.
+ProsperoStore installs only ZIPs of a `<TITLEID>/` folder (`eboot.bin` beside
+`sce_sys/param.json`) into a folder ShadowMountPlus scans; it never installs a
+`.pkg`. MuseStation 01.006.000 is therefore released as `PPSA99576.zip`, made
+from the same staged title as the `.pkg`:
+
+```sh
+python3 scripts/package-folder.py build/native/title/PPSA99576 dist/zip-v1
+```
+
+The ZIP holds the 442 staged files byte for byte, with the unmodified staged
+`param.json` (zero SDK/firmware fields, as ProsperoStore's own folder app uses;
+the `.pkg` builder's 2.00 promotion is not applied). Every file and folder is a
+`0777` regular entry; links and special files are refused. After writing, the
+script repeats ProsperoStore's archive rules (one app root named `PPSA99576`,
+clean relative paths, no duplicates or encryption, 100,000 entries, 512-byte
+paths, 2 GiB `kArtifactLimit`) and compares every unpacked SHA-256 with the
+staged source. On 2026-10-31 ProsperoStore commit `22d5a44`'s own
+`inspect_archive` and `extract_archive`, compiled on Opti3, accepted the
+archive and unpacked all 442 files identically at `0777`.
+
+`scripts/catalog-build.py` writes an unsigned custom catalog (store API v1,
+schema 3) into `site/api/v1/`; the same commit's `parse_manifest`, `parse_index`,
+`parse_versions`, `parse_detail` and `artifact_url` accept it. The website's Pages
+deployment publishes it at `https://musestation.interestingsoup.com/api/v1/`. Raise `--sequence` with every
+catalog change. The relay still delivers generated
+apps as `.pkg` through the install helper; moving generated apps to the folder
+route is separate work. Hardware install and launch remain unverified.
 
 Before enabling updates, require an authenticated manifest and exact archive hash,
 bounded extraction that rejects traversal, symlinks, duplicates and ambiguous

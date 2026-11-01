@@ -107,7 +107,7 @@ not connected in this version.
   exploit coverage alone does not establish native package compatibility.
 - A DualSense controller. Start with typing; voice additionally needs the correct
   AudioIn module path and successful hardware capture testing.
-- Space for the **2.10 GB package** and installed assets. The title also requests
+- Space for the **950 MB app folder** and installed assets. The title also requests
   **4 GiB of writable data space** for downloaded apps, logs and caches.
 - **For Hybrid:** a private-LAN Docker relay and a connector exchanging requests,
   plans and source with Muse. The tested build host is Linux x86-64. Local lab
@@ -125,29 +125,39 @@ verified payload environment's own reboot/reapplication procedure.
 
 ### 1. Verify and install
 
-Use matching release files. The developer's current build outputs are in
-`dist/pkg-v6/`; that directory is **not included in a Git clone**, and a public
-binary release has not been uploaded. Build from source using the
-[native build instructions](docs/NATIVE-APP.md#rebuild-on-opti3), or use a separately
-provided, verified release set:
+MuseStation installs as a folder app, the format ProsperoStore and ShadowMountPlus
+use. ProsperoStore does not install `.pkg` files. The
+[01.006.000 pre-release](https://github.com/InterestingSoup/musestation/releases/tag/v01.006.000)
+has `PPSA99576.zip`, its `.sha256` checksum and the
+`musestation-corresponding-source.tar.gz` archive.
 
-- `IV0000-PPSA99576_00-MUSEGADGET000001.pkg` and its `.pkg.sha256` checksum.
-- `musestation-corresponding-source.tar.gz` and its `.sha256` checksum.
-- `release.json` and `.pkg.report.json` for version and verification evidence.
+**With ProsperoStore** (needs ShadowMountPlus 1.7beta4 or newer and an ELF loader on
+port 9021):
 
-From the directory containing the package and checksum, run either:
+1. **Settings → Catalogs**: switch on **Custom catalogs**, then **Add a catalog** and
+   type the full address `https://musestation.interestingsoup.com/api/v1/`. (The `InterestingSoup/musestation`
+   shorthand does not work: its github.io address redirects to plain HTTP.)
+2. Confirm **Signatures not checked** for it. It is published here, not in the signed
+   prosperostore.net feed; the ZIP's SHA-256 and layout are still checked.
+3. Close and reopen ProsperoStore, open MuseStation and press Cross.
+
+**By hand:** check the ZIP, unzip it and copy the `PPSA99576` folder into
+`/data/homebrew`, so `eboot.bin` is at `/data/homebrew/PPSA99576/eboot.bin`. Set the
+folder and everything in it to `777` if your FTP client did not
+(otherwise the console reports CE-107750-0).
 
 ```sh
 # macOS
-shasum -a 256 -c IV0000-PPSA99576_00-MUSEGADGET000001.pkg.sha256
+shasum -a 256 -c PPSA99576.zip.sha256
 
 # Linux
-sha256sum -c IV0000-PPSA99576_00-MUSEGADGET000001.pkg.sha256
+sha256sum -c PPSA99576.zip.sha256
 ```
 
-Install the `.pkg` through your independently confirmed native homebrew installer.
-Do not send a `.pkg` or the intermediate native `eboot.elf` to an ELF payload
-loader. The separate `muse-hello.elf` is the loader smoke-test payload.
+Build the ZIP from a staged title with `python3 scripts/package-folder.py`; it checks
+the archive against ProsperoStore's acceptance rules. `scripts/catalog-build.py`
+writes the catalog. Do not send the ZIP or the intermediate native `eboot.elf` to an
+ELF payload loader. The separate `muse-hello.elf` is the loader smoke-test payload.
 
 ### 2. Prepare the Hybrid connection
 
