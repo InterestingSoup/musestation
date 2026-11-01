@@ -11,12 +11,12 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static int posts,offline,fail_file_sync,fail_directory_sync,file_syncs,directory_syncs;
+static int posts,offline,fail_file_sync,fail_directory_sync,directory_sync_errno=EIO,file_syncs,directory_syncs;
 static char *last_body;
 int __real_fsync(int);
 int __wrap_fsync(int fd){
     struct stat st;assert(!fstat(fd,&st));
-    if(S_ISDIR(st.st_mode)){directory_syncs++;if(fail_directory_sync){fail_directory_sync=0;errno=EIO;return -1;}}
+    if(S_ISDIR(st.st_mode)){directory_syncs++;if(fail_directory_sync){fail_directory_sync=0;errno=directory_sync_errno;return -1;}}
     else{file_syncs++;if(fail_file_sync){fail_file_sync=0;errno=EIO;return -1;}}
     return __real_fsync(fd);
 }
@@ -100,7 +100,13 @@ int main(int argc,char **argv){
     client(&c,argv[1],"directory-sync-failure",0);before=posts;fail_directory_sync=1;
     assert(muse_log_open(&log,&c)&&posts==before);
     assert(directory_syncs>0);
+    assert(strstr(muse_log_error(),"fsync journal directory"));
     puts("file/directory fsync failure stops success reporting and avoids premature upload");
+    /* A title sandbox refusing a directory sync is not an I/O error (PS5 12.40). */
+    client(&c,argv[1],"sandbox-directory-sync",0);fail_directory_sync=1;directory_sync_errno=EPERM;
+    assert(!muse_log_open(&log,&c)&&!*muse_log_error());directory_sync_errno=EIO;
+    assert(!muse_log_event(&log,"info","boot","sandboxed directory sync"));muse_log_close(&log);
+    puts("sandbox-refused directory fsync keeps the journal usable");
     client(&c,argv[1],"fifo",0);assert(!mkdir(c.config.log_dir,0700));
     snprintf(spoolpath,sizeof spoolpath,"%s/pending.jsonl",c.config.log_dir);assert(!mkfifo(spoolpath,0600));
     assert(muse_log_open(&log,&c));assert(!unlink(spoolpath));

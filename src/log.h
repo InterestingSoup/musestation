@@ -20,6 +20,8 @@ int muse_log_event(struct muse_log *log, const char *level, const char *event, c
 int muse_log_flush(struct muse_log *log);
 /* Failed upload retains marker and spool. Local mode never uploads records. */
 void muse_log_close(struct muse_log *log);
+/* The step and errno of the last failed muse_log_open, or "" when it succeeded. */
+const char *muse_log_error(void);
 #ifdef __cplusplus
 }
 #endif

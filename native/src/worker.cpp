@@ -597,6 +597,7 @@ void Worker::loop() {
           : (client.http_status == 401 || client.http_status == 403)
               ? "Relay console key rejected; update it in setup."
               : "Cannot persist or flush the session journal. Check log storage and the Muse server.";
+      if (!opened && *muse_log_error()) r.error += std::string(" (") + muse_log_error() + ")";
       if (installer)
         r.error += " Close and reopen Muse before another installation; an "
                    "OS-accepted installation may continue.";

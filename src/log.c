@@ -13,12 +13,20 @@
 
 /* Calls are serialized by the worker or the installer journal lock. HTTP is
  * never attempted from a signal handler; a surviving marker is replayed later. */
+static char last_error[160];
+const char *muse_log_error(void){return last_error;}
+/* Records the failing step for the on-screen error; always returns -1. */
+static int note(const char *step){int saved=errno;snprintf(last_error,sizeof last_error,"%s: %s",step,saved?strerror(saved):"invalid state");errno=saved;return -1;}
+/* The filesystem or the title sandbox declining a directory sync is not an I/O failure. */
+static int no_directory_sync(int e){return e==EINVAL||e==ENOTSUP||e==EOPNOTSUPP||e==EPERM||e==EACCES||e==EBADF;}
 static int sync_parent(const char *path){
-    char parent[1100];if(!path||strlen(path)>=sizeof parent)return -1;strcpy(parent,path);
-    char *slash=strrchr(parent,'/');if(!slash)return -1;if(slash==parent)slash[1]=0;else *slash=0;
-    int fd=open(parent,O_RDONLY|O_DIRECTORY);if(fd<0)return -1;int rc=fsync(fd),saved=errno;if(close(fd)&&!rc)return -1;
+    char parent[1100];if(!path||strlen(path)>=sizeof parent)return note("journal path");strcpy(parent,path);
+    char *slash=strrchr(parent,'/');if(!slash)return note("journal path");if(slash==parent)slash[1]=0;else *slash=0;
+    int fd=open(parent,O_RDONLY|O_DIRECTORY);if(fd<0)return no_directory_sync(errno)?0:note("open journal directory");
+    int rc=fsync(fd),saved=errno;if(close(fd)&&!rc)return note("close journal directory");
     /* These filesystems still get file fsync, but cannot promise directory durability. */
-    return rc&&saved!=EINVAL&&saved!=ENOTSUP?-1:0;
+    if(rc&&!no_directory_sync(saved)){errno=saved;return note("fsync journal directory");}
+    return 0;
 }
 static int mkdirs(const char *path){
     char s[1024];if(!path||strlen(path)>=sizeof(s)||*path!='/')return -1;strcpy(s,path);
@@ -75,14 +83,19 @@ int muse_log_open_fds(struct muse_log *log,struct muse_client *client,int spool,
 int muse_log_open(struct muse_log *log,struct muse_client *client){
     memset(log,0,sizeof(*log));log->client=client;log->local_only=muse_config_local(&client->config);
     char directory[1024];if(snprintf(directory,sizeof directory,"%s%s",client->config.log_dir,log->local_only?"/local":"")>=(int)sizeof directory)return -1;
-    if(mkdirs(directory)||snprintf(log->path,sizeof log->path,"%s/pending.jsonl",directory)>=(int)sizeof log->path)return -1;
-    int spool=open(log->path,O_RDWR|O_CREAT|O_NOFOLLOW|O_NONBLOCK,0600);if(spool<0)return -1;
-    int bad=regular(spool)||repair_fd(spool)||fsync(spool);if(close(spool))bad=-1;if(bad||sync_parent(log->path))return -1;
+    last_error[0]=0;
+    if(mkdirs(directory))return last_error[0]?-1:note("create journal directory");
+    if(snprintf(log->path,sizeof log->path,"%s/pending.jsonl",directory)>=(int)sizeof log->path)return note("journal path");
+    int spool=open(log->path,O_RDWR|O_CREAT|O_NOFOLLOW|O_NONBLOCK,0600);if(spool<0)return note("open journal");
+    int bad=regular(spool)?note("journal is not a regular file"):repair_fd(spool)?note("repair journal"):fsync(spool)?note("fsync journal"):0;
+    if(close(spool)&&!bad)bad=note("close journal");if(bad||sync_parent(log->path))return -1;
     char marker[1040];snprintf(marker,sizeof marker,"%s.active",log->path);
     int fd=open(marker,O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW|O_NONBLOCK,0600),unclean=0;
     if(fd<0&&errno==EEXIST){fd=open(marker,O_RDWR|O_NOFOLLOW|O_NONBLOCK);if(fd>=0)unclean=marker_active(fd);}
-    if(fd<0)return -1;bad=regular(fd)||set_marker(fd,1);if(close(fd))bad=-1;if(bad||sync_parent(marker))return -1;
-    return finish_open(log,unclean);
+    if(fd<0)return note("open journal marker");bad=regular(fd)?note("marker is not a regular file"):set_marker(fd,1)?note("write journal marker"):0;
+    if(close(fd)&&!bad)bad=note("close journal marker");if(bad||sync_parent(marker))return -1;
+    if(finish_open(log,unclean))return last_error[0]?-1:note("journal recovery");
+    return 0;
 }
 int muse_log_flush(struct muse_log *log){
     if(!log||!log->client)return -1;
