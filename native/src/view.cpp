@@ -99,7 +99,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
           126, 451, 30, v.edit.empty() ? muted : white);
     const char *keys = keyboard_keys();
     for (int i = 0; keys[i]; ++i) {
-      float x = 96 + float(i % 12) * 143, y = 520 + float(i / 12) * 58;
+      float x = 96 + float(i % 10) * 172, y = 520 + float(i / 10) * 58;
       bool focus = i == v.key;
       d.rounded_rect({x, y, 129, 48}, 13, focus ? mint : panel);
       label(d, f.mono, std::string(1, keys[i]), x + 51, y + 37, 27,

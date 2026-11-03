@@ -11,13 +11,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static int posts,offline,fail_file_sync,fail_directory_sync,directory_sync_errno=EIO,file_syncs,directory_syncs;
+static int posts,offline,fail_file_sync,fail_directory_sync,directory_sync_errno=EIO,file_sync_errno=EIO,file_syncs,directory_syncs;
 static char *last_body;
 int __real_fsync(int);
 int __wrap_fsync(int fd){
     struct stat st;assert(!fstat(fd,&st));
     if(S_ISDIR(st.st_mode)){directory_syncs++;if(fail_directory_sync){fail_directory_sync=0;errno=directory_sync_errno;return -1;}}
-    else{file_syncs++;if(fail_file_sync){fail_file_sync=0;errno=EIO;return -1;}}
+    else{file_syncs++;if(fail_file_sync){fail_file_sync=0;errno=file_sync_errno;return -1;}}
     return __real_fsync(fd);
 }
 int muse_client_http(struct muse_client *client,const char *origin,const char *method,const char *path,
@@ -107,6 +107,12 @@ int main(int argc,char **argv){
     assert(!muse_log_open(&log,&c)&&!*muse_log_error());directory_sync_errno=EIO;
     assert(!muse_log_event(&log,"info","boot","sandboxed directory sync"));muse_log_close(&log);
     puts("sandbox-refused directory fsync keeps the journal usable");
+    /* A title sandbox refusing a file append fsync is also not an I/O error (PS5 12.40). */
+    client(&c,argv[1],"sandbox-file-sync",0);assert(!muse_log_open(&log,&c));
+    before=posts;fail_file_sync=1;file_sync_errno=EPERM;
+    assert(!muse_log_event(&log,"info","sandbox_append","sandboxed file append sync"));file_sync_errno=EIO;
+    muse_log_close(&log);
+    puts("sandbox-refused file append fsync keeps the journal usable");
     client(&c,argv[1],"fifo",0);assert(!mkdir(c.config.log_dir,0700));
     snprintf(spoolpath,sizeof spoolpath,"%s/pending.jsonl",c.config.log_dir);assert(!mkfifo(spoolpath,0600));
     assert(muse_log_open(&log,&c));assert(!unlink(spoolpath));

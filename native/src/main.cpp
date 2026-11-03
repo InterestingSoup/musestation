@@ -693,8 +693,8 @@ int main() {
           const int count=int(strlen(muse::keyboard_keys()));
           if(input.nav==Direction::left)view.key=(view.key+count-1)%count;
           if(input.nav==Direction::right)view.key=(view.key+1)%count;
-          if(input.nav==Direction::up)view.key=(view.key+count-12)%count;
-          if(input.nav==Direction::down)view.key=(view.key+12)%count;
+          if(input.nav==Direction::up)view.key=(view.key+count-10)%count;
+          if(input.nav==Direction::down)view.key=(view.key+10)%count;
           if(input.is_pressed(Action::confirm)&&view.edit.size()<2048)view.edit+=muse::keyboard_keys()[view.key];
           if(input.is_pressed(Action::west)&&!view.edit.empty())view.edit.pop_back();
           if(input.is_pressed(Action::back))view.screen=muse::Screen::models;

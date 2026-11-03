@@ -59,7 +59,7 @@ static int append_record(struct muse_log *log,const char *level,const char *even
     int fd=log->fd_mode?log->spool_fd:open(log->path,O_WRONLY|O_APPEND|O_CREAT|O_NOFOLLOW|O_NONBLOCK,0600);
     if(fd<0)return -1;struct stat st;int rc=regular(fd)||fstat(fd,&st)||st.st_size<0||st.st_size>8*1024*1024-len;size_t at=0;
     while(!rc&&at<(size_t)len){ssize_t n=write(fd,line+at,(size_t)len-at);if(n<0&&errno==EINTR)continue;if(n<=0){rc=-1;break;}at+=(size_t)n;}
-    if(!rc&&fsync(fd))rc=-1;if(!log->fd_mode){if(close(fd))rc=-1;if(!rc&&sync_parent(log->path))rc=-1;}
+    if(!rc&&fsync(fd)){if(!no_directory_sync(errno))rc=note("fsync append");}if(!log->fd_mode){if(close(fd)&&!rc)rc=note("close append");if(!rc&&sync_parent(log->path))rc=-1;}
     if(!rc)log->pending++;return rc;
 }
 static int finish_open(struct muse_log *log,int unclean){
