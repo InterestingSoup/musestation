@@ -97,7 +97,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
     label(d, f.mono,
           f.mono.font->fit(v.edit.empty() ? empty_value : visible_edit, 30, 1600),
           126, 451, 30, v.edit.empty() ? muted : white);
-    const char *keys = keyboard_keys();
+    const char *keys = v.secret_edit ? "0123456789abcdef" : keyboard_keys();
     for (int i = 0; keys[i]; ++i) {
       float x = 96 + float(i % 10) * 172, y = 520 + float(i / 10) * 58;
       bool focus = i == v.key;

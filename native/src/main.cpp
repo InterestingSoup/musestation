@@ -737,13 +737,15 @@ int main() {
       if(typed)view.secret_edit=false;
       const int index=typed?0:setup_fields[view.field_index];
       const size_t capacity=typed?1024:field_cap(index);
-      int count = int(strlen(muse::keyboard_keys()));
+      const char *cur_keys = (view.secret_edit && !typed) ? "0123456789abcdef"
+                                                           : muse::keyboard_keys();
+      int count = int(strlen(cur_keys));
       if (input.nav == Direction::left) view.key = (view.key + count - 1) % count;
       if (input.nav == Direction::right) view.key = (view.key + 1) % count;
-      if (input.nav == Direction::up) view.key = (view.key + count - 12) % count;
-      if (input.nav == Direction::down) view.key = (view.key + 12) % count;
+      if (input.nav == Direction::up) view.key = (view.key + count - 10) % count;
+      if (input.nav == Direction::down) view.key = (view.key + 10) % count;
       if (input.is_pressed(Action::confirm) && view.edit.size()+1<capacity)
-        view.edit += muse::keyboard_keys()[view.key];
+        view.edit += cur_keys[view.key];
       if (input.is_pressed(Action::west) && !view.edit.empty()) view.edit.pop_back();
       if (input.is_pressed(Action::back)) {
         if (typed) {
@@ -754,6 +756,7 @@ int main() {
           --view.field_index; view.edit=field(pending_config,setup_fields[view.field_index]);
           view.field=fields[setup_fields[view.field_index]];
           view.secret_edit=setup_fields[view.field_index]==5;
+          view.key=0;
         } else modes();
       }
       if (input.is_pressed(Action::page_next) && !view.busy) {
@@ -766,10 +769,45 @@ int main() {
           }
         } else {
           snprintf(field(pending_config,index),field_cap(index),"%s",view.edit.c_str());
+          if (index == 1 && pending_config.server_url[0]) {
+            muse_client tmp_c{};
+            muse_client_init(&tmp_c, &pending_config);
+            unsigned char *sc_body = nullptr;
+            size_t sc_len = 0;
+            if (!muse_client_http(&tmp_c, pending_config.server_url, "GET",
+                                  "/setup-config", nullptr, nullptr, 0,
+                                  4096, &sc_body, &sc_len) && sc_body && sc_len) {
+              auto sc_extract = [](const char *json, size_t len, const char *key,
+                                   char *out, size_t cap) -> bool {
+                std::string h(json, len);
+                std::string pat = "\"" + std::string(key) + "\"";
+                auto p = h.find(pat);
+                if (p == std::string::npos) return false;
+                p = h.find('"', p + pat.size()); // first " after key: is opening quote
+                if (p == std::string::npos) return false;
+                ++p; // skip opening quote
+                auto e = h.find('"', p);
+                if (e == std::string::npos || e - p + 1 > cap) return false;
+                snprintf(out, cap, "%.*s", int(e - p), json + p);
+                return true;
+              };
+              const char *sc_json = reinterpret_cast<const char *>(sc_body);
+              bool sc_token = sc_extract(sc_json, sc_len, "relay_token",
+                                         pending_config.relay_token,
+                                         sizeof pending_config.relay_token);
+              bool sc_shadow = sc_extract(sc_json, sc_len, "shadowmount_url",
+                                          pending_config.shadowmount_url,
+                                          sizeof pending_config.shadowmount_url);
+              if (sc_token || sc_shadow)
+                view.error = "Token pre-filled from relay — press R1 through optional fields.";
+            }
+            free(sc_body);
+          }
           if (view.field_index+1<int(setup_fields.size())) {
             ++view.field_index; view.edit=field(pending_config,setup_fields[view.field_index]);
             view.field=fields[setup_fields[view.field_index]];
-          view.secret_edit=setup_fields[view.field_index]==5;
+            view.secret_edit=setup_fields[view.field_index]==5;
+            view.key=0;
           } else apply_settings();
         }
       }

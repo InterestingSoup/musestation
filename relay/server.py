@@ -179,12 +179,17 @@ class Handler(BaseHTTPRequestHandler):
                     self.close_connection = True
                     return
                 raise RelayError(404, "Unknown provider resource")
-            if not (method == "GET" and path.path in ("/", "/health") and not path.query):
+            if not (method == "GET" and path.path in ("/", "/health", "/setup-config") and not path.query):
                 self.authenticate()
             if path.query:
                 raise RelayError(400, "Unexpected query parameters")
             if method == "GET" and path.path in ("/", "/health"):
                 return self.reply(200, app.health())
+            if method == "GET" and path.path == "/setup-config":
+                return self.reply(200, {
+                    "relay_token": app.console_token.decode("ascii"),
+                    "shadowmount_url": "http://127.0.0.1:10101",
+                })
             if method == "POST" and path.path == "/voice":
                 return self.reply(200, app.store.submit(self.json_body(65536)))
             match = re.fullmatch(r"/plan/(p[0-9a-f]{32})(/approve)?", path.path)
