@@ -179,6 +179,8 @@ class StoreCase(unittest.TestCase):
             self.store.ingest_source(self.source(job, revision))
         for kept in (1, 2):
             self.assertTrue((self.store.path / "work" / f"{job}.attempt{kept}" / "out").is_dir())
+            archived = json.loads((self.store.path / "work" / f"{job}.attempt{kept}" / "submission.json").read_text())
+            self.assertIn(f"attempt {kept}", archived["files"]["main.cpp"])
         # A passing fourth build would need a new request and approval.
 
     def test_worker_rejects_mismatched_identity_and_hash(self):

@@ -812,10 +812,15 @@ class Store:
                 "attempts_left": self.MAX_ATTEMPTS - attempt if fixable else 0,
                 "retry_requires_new_approval": not fixable, "diagnostics": diagnostics})
         if fixable:
-            # The builder refuses to reuse a job directory; keep this attempt's files for triage.
+            # The builder refuses to reuse a job directory; keep this attempt's files for triage,
+            # including the full submission (images/sounds too) so it can be re-run with Muse's assets.
             work = self.path / "work"
             with contextlib.suppress(FileNotFoundError):
                 os.rename(work / id, work / f"{id}.attempt{attempt}")
+            if row["source_json"]:
+                archive = work / f"{id}.attempt{attempt}"
+                archive.mkdir(mode=0o700, parents=True, exist_ok=True)
+                (archive / "submission.json").write_text(row["source_json"])
 
     @staticmethod
     def diagnostics_reference(db, id):
