@@ -30,6 +30,16 @@ void pill(gfx::DrawList &d, const ui::FontRef &f, const std::string &s, float x,
   label(d, f, s, x + 18, y + 29, 20, c);
 }
 } // namespace
+// "Make something worth ___." cycles forever (static with reduced motion).
+static const char *headline_word(const View &v) {
+  static const char *words[] = {"playing", "building", "creating", "making", "experiencing",
+                                "your time", "your PS5", "living", "seeing on this screen",
+                                "sharing", "showing off", "coming back to", "remembering",
+                                "staying up for", "a high score", "a second try", "dreaming up"};
+  if (v.reduced_motion) return words[0];
+  const int n = int(sizeof words / sizeof words[0]);
+  return words[int(v.seconds / 2.4f) % n];
+}
 const char *keyboard_keys() {
   return "qwertyuiopasdfghjkl zxcvbnm./:1234567890";
 }
@@ -51,7 +61,23 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
   d.line(120, 91, 132, 79, 3, gfx::Color::rgb(0x102d30));
   d.line(132, 79, 132, 99, 3, gfx::Color::rgb(0x102d30));
   label(d, f.semibold, "MuseStation", 160, 103, 40, white);
-  label(d, f.regular, "YOUR CONSOLE. YOUR IDEAS.", 470, 98, 19, muted);
+  const bool tabbed = v.screen == Screen::home || v.screen == Screen::creations || v.screen == Screen::library;
+  if (tabbed) {
+    // Top tabs switched with L1 / R1.
+    const char *names[2] = {"Create", v.local ? "Library" : "Creations"};
+    label(d, f.semibold, "L1", 470, 98, 20, muted);
+    float x = 510;
+    for (int i = 0; i < 2; ++i) {
+      const float w = f.semibold.font->measure(names[i], 24) + 56;
+      const bool on = (v.screen == Screen::home ? 0 : 1) == i;
+      d.rounded_rect({x, 66, w, 46}, 23, on ? mint : panel.with_alpha(.85f));
+      label(d, f.semibold, names[i], x + 28, 98, 24, on ? gfx::Color::rgb(0x102d30) : white);
+      x += w + 14;
+    }
+    label(d, f.semibold, "R1", x + 4, 98, 20, muted);
+  } else {
+    label(d, f.regular, "YOUR CONSOLE. YOUR IDEAS.", 470, 98, 19, muted);
+  }
   pill(d, f.regular, (v.screen == Screen::models || v.screen == Screen::model_url) ? "Model setup  /  Internet download" : v.local ? "All Local  /  Offline" : "Hybrid  /  " + v.provider, 1454, 70, 370);
   const bool request = v.screen == Screen::request;
   const bool setup = v.screen == Screen::setup || request || v.screen == Screen::model_url;
@@ -61,6 +87,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
         : v.screen == Screen::models      ? "OPTIONAL LOCAL CODING MODEL"
         : v.screen == Screen::modes       ? "CHOOSE HOW TO CREATE"
         : v.screen == Screen::library     ? "YOUR LOCAL PROJECTS"
+        : v.screen == Screen::creations   ? "YOUR CREATIONS WITH MUSE"
         : v.screen == Screen::connections ? "CONNECT A DEVELOPMENT PARTNER"
         : v.screen == Screen::plan        ? "YOUR BUILD PLAN"
         : v.screen == Screen::planning    ? "YOUR REQUEST IS WITH MUSE"
@@ -73,6 +100,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
       : v.screen == Screen::models      ? "Choose your local model."
       : v.screen == Screen::modes       ? "Your idea. Muse builds it."
       : v.screen == Screen::library     ? "Your ideas, kept here."
+      : v.screen == Screen::creations   ? "Everything you've made."
       : v.screen == Screen::connections ? v.connection_muse ? "Connect with Muse." : "More ways to create."
       : v.screen == Screen::project     ? v.job_label
       : v.screen == Screen::plan        ? "A plan before we play."
@@ -80,7 +108,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
       : v.screen == Screen::working     ? "Bringing your idea to life."
       : v.screen == Screen::error       ? "Let's get this working."
       : v.screen == Screen::diagnostics ? "Everything in view."
-                                        : "Make something\nworth playing.";
+                                        : std::string("Make something\nworth ") + headline_word(v) + ".";
   ui::paragraph(d, f.display, title, 96, 282, 66, 1690, 77, white, 2);
   if (setup) {
     label(d, f.regular,
@@ -173,10 +201,12 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
       label(d,f.semibold,"Local transcription and speech. Muse handles development.",96,870,25,mint);
       ui::paragraph(d,f.regular,"Your Opti3 relay exchanges requests and plans with Muse through a shared folder. Configure its LAN address to begin.",96,918,24,1728,34,muted,2);
     }
-  } else if (v.screen == Screen::library) {
+  } else if (v.screen == Screen::library || v.screen == Screen::creations) {
+    const bool made = v.screen == Screen::creations;
     if (v.projects.empty()) {
       card(d,{96,390,1728,440});
-      ui::paragraph(d,f.regular,"Your local projects will appear here. Press Circle, then X to describe your first app.",132,470,32,1600,46,white,4);
+      ui::paragraph(d,f.regular,made ? "Everything you make with Muse appears here, including builds still in progress. Press L1, then X or R2 to describe your first idea."
+                                     : "Your local projects will appear here. Press Circle, then X to describe your first app.",132,470,32,1600,46,white,4);
     } else {
       int first=(v.selection/6)*6;
       for (int i=first; i<int(v.projects.size()) && i<first+6; ++i) {
@@ -184,11 +214,23 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
         d.rounded_rect({96,y,1728,80},18,i==v.selection?mint.with_alpha(.18f):panel);
         label(d,f.semibold,f.semibold.font->fit(v.projects[i].title,28,950),124,y+36,28,white);
         label(d,f.regular,f.regular.font->fit(v.projects[i].detail,20,1100),124,y+65,20,muted);
-        label(d,f.mono,v.projects[i].state,1400,y+46,24,i==v.selection?mint:muted);
+        const std::string &st = v.projects[i].state;
+        const gfx::Color state_col = !made ? (i==v.selection?mint:muted)
+            : st == "ready" ? mint
+            : (st == "failed" || st == "no plan") ? gfx::Color::rgb(0xffb388)
+            : (st == "plan ready") ? gfx::Color::rgb(0x9ecbff) : gfx::Color::rgb(0xffe08a);
+        label(d,f.mono,st,1400,y+46,24,state_col);
       }
       label(d,f.mono,"Page "+std::to_string(v.selection/6+1)+" / "+std::to_string((v.projects.size()+5)/6)+
-            "  |  "+std::to_string(v.projects.size())+" projects",96,965,22,muted);
+            "  |  "+std::to_string(v.projects.size())+(made ? " creations" : " projects"),96,965,22,muted);
     }
+    if (made && v.progress >= 0) {
+      const float fraction = std::fmax(0.f, std::fmin(1.f, float(v.progress) / 100.f));
+      d.rounded_rect({700, 950, 1124, 14}, 7, mint.with_alpha(.12f));
+      if (fraction > 0) d.rounded_rect({700, 950, 1124 * fraction, 14}, 7, mint);
+    }
+    if (made && !v.status.empty())
+      label(d,f.regular,f.regular.font->fit(v.status,22,1700),96,925,22,muted);
   } else if (v.screen == Screen::connections) {
     card(d,{96,380,1728,500});
     label(d,f.semibold,v.connection_muse?"OPTI3 BUILD SERVER / MUSE RELAY":"PROVIDER CONNECTIONS",132,440,26,mint);
@@ -277,14 +319,15 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
         : setup ? (v.secret_edit ? "X  Type     Square  Delete     R1  Continue     Circle  Back" : "X  Type     Square  Delete     Triangle  Caps     R1  Continue     Circle  Back")
         : v.screen == Screen::models ? v.downloading_model ? "Circle  Cancel download" : v.model_ready ? "X  Download recommended     Square  Custom URL     R1  Continue     Circle  Modes" : "X  Download recommended     Square  Custom URL     Circle  Modes"
         : v.screen == Screen::modes ? v.mode_choice==1 ? "Left / Right  Mode     Up / Down  Budget     X  Select     Circle  Back" : "Left / Right  Mode     X  Select     Circle  Back"
-        : v.screen == Screen::library ? "D-pad  Choose     X  Open project     Circle  Back"
+        : v.screen == Screen::library ? "D-pad  Choose     X  Open project     L1  Create     Circle  Back"
+        : v.screen == Screen::creations ? "D-pad  Choose     X  Install / Open plan     Square  Change it     L1  Create     Circle  Back"
         : v.screen == Screen::connections ? v.connection_muse ? "X / Square  Configure relay     Circle  Back" : "Circle  Back     Provider connection unavailable"
         : v.screen == Screen::project ? "X  Play / Resume   |   Square  Pause / Refine   |   Triangle  Library   |   Circle  Back"
         : v.screen == Screen::plan ? "X  Approve     Square  Add detail     "
                                      "Circle  Cancel     Hold R2  Speak"
         : v.screen == Screen::planning ? "Circle  Cancel request     L1 + R1  Close and keep request for later"
-        : v.local ? "X  Type idea     R2  Speak     Triangle  Library     Options  Modes     L1 + R1  Close"
-                  : "X  Type idea     R2  Speak     Circle  Cancel     Options  Modes     L1 + R1  Close",
+        : v.local ? "X  Type idea     R2  Speak     R1  Library     Options  Modes     L1 + R1  Close"
+                  : "X  Type idea     R2  Speak     R1  Creations     Options  Modes     L1 + R1  Close",
         96, 1040, 24, white);
   if (!setup) {
     char fps[40];

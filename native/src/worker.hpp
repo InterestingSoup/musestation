@@ -43,6 +43,8 @@ enum class Task {
   local_resume,
   local_pause,
   local_cancel,
+  creations_list,
+  creation_install,
   stop
 };
 struct Work {
@@ -53,6 +55,10 @@ struct Work {
   unsigned max_attempts = 4, max_seconds = 7200;
   muse_config configuration{};
   muse_build_status manifest{};
+};
+struct CreationRow {
+  std::string plan_id, revision, job_id, state, title_id, name, detail, transcript, plan_text;
+  long long created = 0;
 };
 struct Result {
   Work work;
@@ -65,6 +71,7 @@ struct Result {
   muse_local_job local_job{};
   std::vector<muse_local_job> local_jobs;
   int speech_chunks = 0;  // sentences already handed over for early playback
+  std::vector<CreationRow> creations;
   bool coding_model_unavailable = false;
   bool needs_init = false, configuration_applied = false, plan_retryable = false;
 };

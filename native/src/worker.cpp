@@ -904,6 +904,61 @@ void Worker::loop() {
       case Task::poll:
         r.rc = muse_client_status(&client, w.id.c_str(), &r.status);
         break;
+      case Task::creations_list: {
+        // Every hybrid creation session is kept on the relay, so this survives restarts.
+        unsigned char *body = nullptr;
+        size_t length = 0;
+        r.rc = muse_client_http(&client, client.config.server_url, "GET", "/creations", "text/plain",
+                                nullptr, 0, 512 * 1024, &body, &length);
+        if (!r.rc && body) {
+          std::string text(reinterpret_cast<char *>(body), length);
+          size_t start = 0;
+          while (start < text.size()) {
+            size_t end = text.find('\n', start);
+            if (end == std::string::npos) end = text.size();
+            std::vector<std::string> f;
+            size_t a = start;
+            for (;;) {
+              size_t t = text.find('\t', a);
+              if (t == std::string::npos || t > end) { f.push_back(text.substr(a, end - a)); break; }
+              f.push_back(text.substr(a, t - a));
+              a = t + 1;
+            }
+            if (f.size() == 10) {
+              CreationRow c;
+              c.plan_id = f[0]; c.revision = f[1]; c.job_id = f[2]; c.state = f[3]; c.title_id = f[4];
+              c.name = f[5]; c.created = std::atoll(f[6].c_str()); c.detail = f[7]; c.transcript = f[8];
+              c.plan_text = f[9];
+              r.creations.push_back(std::move(c));
+            }
+            start = end + 1;
+          }
+        } else if (r.rc) r.error = client.error;
+        free(body);
+        break;
+      }
+      case Task::creation_install: {
+        // Install a finished creation from the Creations tab (any session, any time).
+        muse_build_status st{};
+        r.rc = muse_client_status(&client, w.id.c_str(), &st);
+        if (!r.rc && (std::strcmp(st.state, "done") || !st.folder_sha256[0])) {
+          r.rc = -1;
+          r.error = "This creation has no installable folder app yet.";
+          break;
+        }
+        if (!r.rc) {
+          install_done.store(0);
+          install_total.store(st.folder_size);
+          r.rc = muse_client_install_folder(&client, w.id.c_str(), &st, "/data/homebrew",
+                                            &Worker::folder_progress, this);
+          muse_log_event(&journal, r.rc ? "error" : "info", "creation_install",
+                         r.rc ? client.error : st.title_id);
+          r.work.manifest = st;
+          if (!r.rc) r.install.installed = r.install.completed = true;
+        }
+        if (r.rc && r.error.empty()) r.error = client.error;
+        break;
+      }
       case Task::download: {
         if (w.generation != approved_generation || w.id != approved_job) {
           r.rc = -1;

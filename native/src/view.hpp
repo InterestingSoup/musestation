@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 namespace muse {
-enum class Screen { home, plan, planning, working, error, setup, diagnostics, modes, request, library, project, connections, models, model_url };
+enum class Screen { home, plan, planning, working, error, setup, diagnostics, modes, request, library, project, connections, models, model_url, creations };
 struct ProjectRow { std::string title, state, detail; };
 struct View {
   Screen screen = Screen::home;
@@ -25,6 +25,7 @@ struct View {
        connection_muse = true, model_ready = false, downloading_model = false,
        caps = false;
   std::string qr_url;
+  int tab = 0;  // top tabs: 0 Create, 1 Creations (Hybrid) / Library (Local)
   float seconds = 0, fps = 0, meter = 0;
 };
 void render(hui::gfx::Renderer &, const hui::ui::Fonts &, const View &,

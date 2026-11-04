@@ -213,6 +213,8 @@ int main() {
   muse::Worker worker;
   muse_phone *phone = nullptr;
   bool folder_install = false;
+  std::vector<muse::CreationRow> creations;
+  double creations_refresh_at = 0;
   float build_started = 0;
   bool worker_started = false, exit_pending = false, quit_after_flush = false,
        session_flush = false, need_init = false;
@@ -351,7 +353,15 @@ int main() {
     view.plan.clear(); plan_read = false;
     if (plan.transcript[0]) view.transcript = plan.transcript;
     view.detail = "Muse is preparing your plan through the Opti3 relay.";
-    view.status = plan.detail[0] ? std::string(plan.detail) : "Waiting for Muse. Nothing builds until you review and approve the plan.";
+    {
+      // Relay detail says whether Muse has picked the request up yet; add a timer.
+      const int waited = int(view.seconds - plan_wait_started);
+      const std::string detail = plan.detail[0] ? std::string(plan.detail)
+                                                : "Waiting for Muse. Nothing builds until you review and approve the plan.";
+      view.status = std::to_string(waited / 60) + " min " + std::to_string(waited % 60) + " s   |   " + detail;
+      if (detail.rfind("Muse picked up", 0) == 0) view.detail = "Muse is writing your plan.";
+      else if (detail.rfind("Request sent", 0) == 0) view.detail = "Your request is saved on the relay, waiting for Muse.";
+    }
   };
   auto show_project = [&](const muse_local_job &job) {
     local_job = job;
@@ -523,6 +533,35 @@ int main() {
             snprintf(pending_config.coding_model_path,sizeof pending_config.coding_model_path,"%s",res.path.c_str());
             open_model_setup=true; apply_settings();
           }
+        } else if (res.work.type == muse::Task::creations_list) {
+          if (res.rc) {
+            view.status = "Cannot reach the relay to list your creations (" + res.error + "). Retrying.";
+          } else {
+            creations = res.creations;
+            view.projects.clear();
+            for (const auto &c : creations) {
+              std::string title = !c.name.empty() ? c.name : c.transcript.substr(0, 60);
+              std::string state = c.state == "done" ? "ready" : c.state;
+              std::string detail = c.detail;
+              if (c.state != "done" && c.state != "failed" && c.state != "no plan" && !c.transcript.empty())
+                detail = detail + "   |   \"" + c.transcript.substr(0, 70) + "\"";
+              view.projects.push_back({title, state, detail});
+            }
+            view.selection = std::clamp(view.selection, 0, std::max(0, int(creations.size()) - 1));
+            if (view.screen == muse::Screen::creations && !folder_install)
+              view.status = creations.empty() ? "Nothing yet. Press L1 and make your first idea."
+                                              : std::to_string(creations.size()) + " creations. Updated just now.";
+          }
+          creations_refresh_at = view.seconds + 4;
+        } else if (res.work.type == muse::Task::creation_install) {
+          install_active = folder_install = false;
+          view.progress = -1;
+          if (res.rc) view.status = "Install failed: " + res.error;
+          else {
+            view.status = std::string("Installed ") + res.work.manifest.folder_name + ". Open it from your PS5 home screen.";
+            pad.rumble(.3f, .18f);
+          }
+          creations_refresh_at = view.seconds;
         } else if (res.work.type == muse::Task::configure) {
           if (res.configuration_applied) {
             cfg=res.work.configuration; configured=true; sync_mode();
@@ -578,7 +617,14 @@ int main() {
                 "Speech unavailable; the full plan remains on screen.";
           }
         } else if (res.work.generation == gate.generation) {
-          if (res.rc < 0 && res.plan_retryable && (plan_active || res.plan.id[0])) {
+          if (res.rc < 0 && res.work.type == muse::Task::poll && gate.job_id[0]) {
+            // A build-status check that cannot reach the relay (restart, Wi-Fi blip)
+            // is not a build failure: keep the job and try again shortly.
+            poll_at = view.seconds + 5;
+            const int waited = int(view.seconds - build_started);
+            view.status = std::to_string(waited / 60) + " min " + std::to_string(waited % 60) +
+                          " s   |   Relay unreachable (" + res.error + "). Retrying; your build continues on opti3.";
+          } else if (res.rc < 0 && res.plan_retryable && (plan_active || res.plan.id[0])) {
             if (!plan_active) wait_plan(res.plan);
             plan_poll_at = view.seconds + 5;
             view.status = "Relay unavailable. Retrying the saved request; no approval was sent.";
@@ -601,7 +647,7 @@ int main() {
               library=res.local_jobs; view.projects.clear();
               for (const auto &j:library) view.projects.push_back({j.title,muse_local_state_name(j.state),j.detail});
               view.selection=std::clamp(view.selection,0,std::max(0,int(library.size())-1));
-              view.screen=muse::Screen::library;
+              view.screen=muse::Screen::library; view.tab=1;
               break;
             case muse::Task::local_load:
             case muse::Task::local_approve:
@@ -695,8 +741,15 @@ int main() {
               else {
                 // Live step from the relay ("Waiting for Muse source", "Compiling 71 of 107 files"...).
                 const int waited = int(view.seconds - build_started);
-                view.status = std::string(res.status.detail[0] ? res.status.detail : "Building") + "   |   " +
-                              std::to_string(waited / 60) + " min " + std::to_string(waited % 60) + " s";
+                const std::string step = res.status.detail[0] ? res.status.detail : "Building";
+                view.status = std::to_string(waited / 60) + " min " + std::to_string(waited % 60) + " s   |   " + step;
+                // Headline follows the stage the relay reports.
+                if (step.rfind("Approval sent", 0) == 0) view.detail = "Your approval is on the relay, waiting for Muse.";
+                else if (step.rfind("Muse picked up", 0) == 0) view.detail = "Muse is writing your app.";
+                else if (step.rfind("Build attempt", 0) == 0) view.detail = "Muse is fixing a build error.";
+                else if (step.rfind("Compiling", 0) == 0 || step.rfind("Preparing", 0) == 0 ||
+                         step.rfind("Packaging", 0) == 0 || step.rfind("Muse sent", 0) == 0)
+                  view.detail = "opti3 is building your app for the PS5.";
                 poll_at = view.seconds + 1.5;
               }
               break;
@@ -841,9 +894,15 @@ int main() {
         muse::Work w; w.type=muse::Task::plan_poll; w.generation=gate.generation; w.id=waiting_plan;
         if (worker.submit(w)) plan_poll_at=view.seconds+2;
       }
-    } else if (install_active && !view.busy && view.seconds >= install_poll_at) {
+    } else if (install_active && !folder_install && !view.busy && view.seconds >= install_poll_at) {
       if (!send(muse::Task::install_poll))
         fail("Install monitoring could not be queued. An accepted installation may continue.");
+    } else if (view.screen == muse::Screen::creations && !view.busy && !install_active &&
+               view.seconds >= creations_refresh_at) {
+      muse::Work w;
+      w.type = muse::Task::creations_list;
+      w.generation = gate.generation;
+      if (worker.submit(w)) creations_refresh_at = view.seconds + 30;
     } else if (gate.state == MUSE_BUILDING && !view.busy &&
                view.seconds >= poll_at) {
       muse::Work w;
@@ -938,6 +997,42 @@ int main() {
         setup();
       }
       if (input.is_pressed(Action::back)) modes();
+    } else if (view.screen==muse::Screen::creations) {
+      const int count = int(creations.size());
+      if (input.nav==Direction::up) view.selection=std::max(0,view.selection-1);
+      if (input.nav==Direction::down) view.selection=std::min(std::max(0,count-1),view.selection+1);
+      const bool tab_back = input.is_pressed(Action::page_prev) && !input.is_held(Action::page_next);
+      if ((input.is_pressed(Action::back) || tab_back) && !install_active) {
+        view.screen=muse::Screen::home; view.tab=0; view.detail=home_detail();
+        view.status=view.local ? "All Local. Your requests and journals stay on this console."
+                               : "Hybrid with Muse. Local voice, companion development.";
+      } else if (count && !view.busy && !install_active) {
+        const auto &c = creations[std::clamp(view.selection,0,count-1)];
+        if (input.is_pressed(Action::confirm)) {
+          if (c.state == "done" && !c.job_id.empty()) {
+            muse::Work w; w.type=muse::Task::creation_install; w.generation=gate.generation; w.id=c.job_id;
+            if (worker.submit(w)) {
+              install_active = folder_install = true; view.progress = 0;
+              view.status = "Installing " + c.name + " ...";
+            }
+          } else if (c.state == "plan ready" && !c.revision.empty()) {
+            muse_plan plan{};
+            snprintf(plan.id,sizeof plan.id,"%s",c.plan_id.c_str());
+            snprintf(plan.revision,sizeof plan.revision,"%s",c.revision.c_str());
+            snprintf(plan.text,sizeof plan.text,"%s",c.plan_text.c_str());
+            muse_reset(&gate); show_plan(plan);
+          } else {
+            view.status = c.detail.empty() ? "This creation is still in progress." : c.detail;
+          }
+        }
+        if (input.is_pressed(Action::west) && !c.plan_text.empty() && !c.revision.empty()) {
+          // Change it: a revision request that carries this creation's plan.
+          worker.set_context(c.plan_id, c.revision, c.plan_text); refining=true;
+          muse_reset(&gate); view.screen=muse::Screen::request; view.tab=0;
+          view.field="How should " + (c.name.empty() ? std::string("it") : c.name) + " change?";
+          view.edit.clear(); view.error.clear(); view.key=0;
+        }
+      }
     } else if (view.screen==muse::Screen::library) {
       if (input.nav==Direction::up) view.selection=std::max(0,view.selection-1);
       if (input.nav==Direction::down) view.selection=std::min(std::max(0,int(library.size())-1),view.selection+1);
@@ -946,8 +1041,9 @@ int main() {
         local_job=library[view.selection]; play_pending=false;
         if (!local_send(muse::Task::local_load)) fail("The project could not be opened.");
       }
-      if (input.is_pressed(Action::back)) {
-        view.screen=muse::Screen::home; muse_reset(&gate);
+      if (input.is_pressed(Action::back) ||
+          (input.is_pressed(Action::page_prev) && !input.is_held(Action::page_next))) {
+        view.screen=muse::Screen::home; view.tab=0; muse_reset(&gate);
         worker.set_context("","",""); refining=false;
       }
       if (input.is_pressed(Action::menu) && !view.busy) modes();
@@ -1009,6 +1105,19 @@ int main() {
         }
       }
     } else {
+      // Top tabs (L1/R1, like Orbit): Create <-> Creations (Hybrid) / Library (Local).
+      if (view.screen == muse::Screen::home && configured && !view.busy && !install_active && !plan_active &&
+          gate.state == MUSE_IDLE && input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
+        if (view.local) {
+          local_run=false; library_pending=true; pending_speech.clear();
+          worker.set_context("","",""); refining=false;
+          view.status="Opening your saved local projects.";
+        } else {
+          view.screen = muse::Screen::creations; view.tab = 1; view.selection = 0;
+          view.status = "Loading your creations from the relay...";
+          creations_refresh_at = view.seconds;
+        }
+      }
       if (input.is_pressed(Action::menu) && !view.busy && !install_active && !local_run && !plan_active) modes();
       if (view.local && view.screen==muse::Screen::project && input.is_pressed(Action::west)) {
         local_run=false;

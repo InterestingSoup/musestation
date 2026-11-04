@@ -137,6 +137,17 @@ int main(int argc, char **argv) {
   v=base(); v.local=false; v.provider="Muse"; v.screen=muse::Screen::setup;
   v.field="AudioIn module path (optional for typing)"; v.step_count=5; v.field_index=4;
   add("setup-hybrid-optional-mic",v);
+  v=base(); v.local=false; v.provider="Muse"; v.screen=muse::Screen::home; v.seconds=7.3f;
+  add("home-hybrid-tabs",v);
+  v=base(); v.local=false; v.provider="Muse"; v.screen=muse::Screen::creations; v.tab=1; v.selection=0;
+  v.projects={
+    {"Muse App 002","building","Muse picked up your approval and is writing the code   |   \"make a game so my kids learn the buttons\""},
+    {"Muse App 001","ready","Built. Press X to install it on this console"},
+    {"Can you build a beautiful, counter application?","plan ready","Plan ready to review. Press X to open it"},
+    {"Thank you. Thank you. Thank you.","no plan","Transcript contains only repeated 'Thank you' and describes no app"},
+    {"Muse App 003","fixing","Build attempt 1 of 3 failed. Muse is fixing the code"}};
+  v.progress=42; v.status="Copying eboot.bin  (12 of 29 MB)";
+  add("creations-list",v);
   v=base(); v.local=false; v.provider="Muse"; v.screen=muse::Screen::setup;
   v.field="Relay address (private LAN HTTP only)"; v.step_count=7; v.field_index=2;
   v.edit="http://192.168.5.54:8860"; v.qr_url="http://192.168.5.54:8860/setup";
