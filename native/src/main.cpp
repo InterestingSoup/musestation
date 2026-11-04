@@ -13,10 +13,15 @@
 #include "platform/ps5/system.hpp"
 #include <algorithm>
 #include <array>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <pthread.h>
+#include <string>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <cerrno>
 #include <vector>
 using namespace hui;
 namespace {
@@ -54,6 +59,85 @@ char *field(muse_config &c, int i) {
   }
 }
 size_t field_cap(int i) { return i == 0 ? 128 : i == 4 ? 512 : i == 5 ? 65 : 256; }
+// One /setup-config request at a time, on its own thread: muse_client_http
+// blocks for up to the configured timeout and must not stall rendering.
+struct SetupPoll {
+  pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  bool running = false, done = false;
+  muse_config config{};
+  char origin[sizeof(muse_config{}.server_url)]{};
+  std::string reply, error;
+};
+SetupPoll setup_poll;
+// Field diagnostics: the title sandbox mounts the console's /data, which is
+// readable over FTP, so setup problems can be seen without the screen.
+void setup_debug(const char *format, ...) {
+  FILE *f = fopen("/data/muse-setup-debug.log", "a");
+  if (!f) return;
+  va_list args;
+  va_start(args, format);
+  vfprintf(f, format, args);
+  va_end(args);
+  fputc('\n', f);
+  fclose(f);
+}
+void *setup_poll_entry(void *) {
+  muse_client c{};
+  muse_client_init(&c, &setup_poll.config);
+  unsigned char *body = nullptr;
+  size_t length = 0;
+  std::string reply;
+  if (!muse_client_http(&c, setup_poll.origin, "GET", "/setup-config", "application/json",
+                        nullptr, 0, 8192, &body, &length) && body)
+    reply.assign(reinterpret_cast<const char *>(body), length);
+  free(body);
+  std::string error = reply.empty() ? (c.error[0] ? c.error : "empty reply") : "";
+  setup_debug("poll %s/setup-config: status=%d bytes=%zu error=%s", setup_poll.origin,
+              c.http_status, reply.size(), error.c_str());
+  pthread_mutex_lock(&setup_poll.mutex);
+  setup_poll.reply = std::move(reply);
+  setup_poll.error = std::move(error);
+  setup_poll.done = true;
+  setup_poll.running = false;
+  pthread_mutex_unlock(&setup_poll.mutex);
+  return nullptr;
+}
+bool setup_poll_start(const muse_config &config) {
+  pthread_mutex_lock(&setup_poll.mutex);
+  bool ok = !setup_poll.running && !setup_poll.done;
+  if (ok) {
+    // /setup-config is the unauthenticated route that hands out the token, so
+    // send it without one: the client only adds (and insists on) the relay
+    // token when the request origin equals config.server_url.
+    snprintf(setup_poll.origin, sizeof setup_poll.origin, "%s", config.server_url);
+    setup_poll.config = config;
+    setup_poll.config.server_url[0] = 0;
+    setup_poll.config.timeout_ms = 3000;
+    pthread_t thread;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_attr_setstacksize(&attr, 512 * 1024);
+    int rc = pthread_create(&thread, &attr, setup_poll_entry, nullptr);
+    pthread_attr_destroy(&attr);
+    ok = rc == 0;
+    if (!ok) setup_debug("poll thread create failed: rc=%d", rc);
+    setup_poll.running = ok;
+  }
+  pthread_mutex_unlock(&setup_poll.mutex);
+  return ok;
+}
+bool setup_poll_take(std::string *reply, std::string *error) {
+  pthread_mutex_lock(&setup_poll.mutex);
+  bool done = setup_poll.done;
+  if (done) {
+    *reply = std::move(setup_poll.reply); setup_poll.reply.clear();
+    *error = std::move(setup_poll.error); setup_poll.error.clear();
+    setup_poll.done = false;
+  }
+  pthread_mutex_unlock(&setup_poll.mutex);
+  return done;
+}
 bool read_speech(const std::string &path, std::vector<float> &out) {
   std::string bytes;
   return save::read_file(path, &bytes, 32 * 1024 * 1024) &&
@@ -73,8 +157,17 @@ int main() {
   muse_config cfg{};
   muse_config_defaults(&cfg);
   char config_error[256]{};
+  errno = 0;
   bool configured = muse_config_load(config_path.c_str(), &cfg, config_error,
                                      sizeof config_error) == 0;
+  {
+    int saved_errno = errno;
+    struct stat st{};
+    int st_rc = stat(config_path.c_str(), &st);
+    setup_debug("startup: config %s load=%s error='%s' errno=%d stat=%d size=%lld mode=%o uid=%d euid=%d",
+                config_path.c_str(), configured ? "ok" : "FAILED", config_error, saved_errno, st_rc,
+                (long long)st.st_size, unsigned(st.st_mode & 0777), int(st.st_uid), int(geteuid()));
+  }
   if (!configured) {
     muse_config_defaults(&cfg);
     snprintf(cfg.log_dir, sizeof cfg.log_dir, "%s/logs", storage.c_str());
@@ -119,6 +212,8 @@ int main() {
   muse_reset(&gate);
   muse::Worker worker;
   muse_phone *phone = nullptr;
+  bool folder_install = false;
+  float build_started = 0;
   bool worker_started = false, exit_pending = false, quit_after_flush = false,
        session_flush = false, need_init = false;
   double poll_at = 0, install_poll_at = 0, log_retry_at = 30;
@@ -181,9 +276,12 @@ int main() {
     pending_config = cfg;
     view.error.clear();
   };
+  float setup_poll_at = 1e9f;
   auto setup = [&]() {
     view.screen = muse::Screen::setup;
-    setup_fields = muse_config_local(&pending_config) ? std::vector<int>{4} : std::vector<int>{0,1,2,3,4,5,6};
+    // The microphone needs no setup (the system AudioIn module is linked in), so the
+    // AudioIn path (field 4) is only an advanced config.json override.
+    setup_fields = muse_config_local(&pending_config) ? std::vector<int>{4} : std::vector<int>{0,1,2,3,5,6};
     view.secret_edit = false;
     view.field_index = 0;
     view.step_count = int(setup_fields.size());
@@ -195,10 +293,15 @@ int main() {
     view.qr_url = pending_config.server_url[0]
                     ? std::string(pending_config.server_url) + "/setup"
                     : std::string{};
+    setup_poll_at = view.seconds;
+    setup_debug("setup screen: url='%s' mode=%s provider=%s token=%d", pending_config.server_url,
+                pending_config.build_mode, pending_config.hybrid_provider,
+                pending_config.relay_token[0] != 0);
   };
   if (configured) initialize(); else modes();
   auto fail = [&](const std::string &error) {
     install_active = false;
+    folder_install = false;
     plan_active = false;
     local_run = false;
     view.progress = -1;
@@ -269,6 +372,45 @@ int main() {
         : "Saved on your console. Open the library to review another project.";
     }
   };
+  // Returns true when the phone form supplied a complete configuration.
+  auto apply_setup_reply = [&](const std::string &h) -> bool {
+    auto get = [&](const char *key, std::string &out) -> bool {
+      std::string pat = "\"" + std::string(key) + "\"";
+      auto p = h.find(pat);
+      if (p == std::string::npos) return false;
+      p = h.find('"', p + pat.size());
+      if (p == std::string::npos) return false;
+      auto e = h.find('"', ++p);
+      if (e == std::string::npos) return false;
+      out = h.substr(p, e - p);
+      return out.find('\\') == std::string::npos;
+    };
+    auto put = [&](int i, const std::string &v) {
+      if (v.size() + 1 > field_cap(i)) return false;
+      snprintf(field(pending_config, i), field_cap(i), "%s", v.c_str());
+      return true;
+    };
+    std::string v, ip, url;
+    const bool full = get("console_ip", ip) && get("server_url", url);
+    if (full) {
+      static const char *keys[] = {"console_ip", "server_url", "ps5lm_url", "speech_url",
+                                   "audio_in_module", "relay_token", "shadowmount_url"};
+      for (int i = 0; i < 7; ++i)
+        if (get(keys[i], v) && !put(i, v)) { view.error = "The phone form sent a value that is too long."; return false; }
+      view.edit = field(pending_config, setup_fields[view.field_index]);
+      view.error = "Settings received from your phone. Applying now.";
+      return true;
+    }
+    bool filled = false;
+    if (!pending_config.relay_token[0] && get("relay_token", v) && put(5, v)) filled = true;
+    if (!pending_config.shadowmount_url[0] && get("shadowmount_url", v) && put(6, v)) filled = true;
+    if (filled) {
+      int cur = setup_fields[view.field_index];
+      if ((cur == 5 || cur == 6) && view.edit.empty()) view.edit = field(pending_config, cur);
+      view.error = "Token filled in from the relay. Press R1 through the optional fields.";
+    }
+    return false;
+  };
   auto apply_settings = [&]() {
     if (muse_config_validate(&pending_config, config_error, sizeof config_error)) {
       view.error = config_error; return;
@@ -295,6 +437,43 @@ int main() {
     float dt = std::clamp(float(elapsed), .001f, .1f);
     last = now;
     view.seconds += dt;
+    if (view.screen == muse::Screen::setup && !view.qr_url.empty() &&
+        pending_config.server_url[0] && !muse_config_local(&pending_config)) {
+      std::string reply, poll_error;
+      if (setup_poll_take(&reply, &poll_error)) {
+        setup_poll_at = view.seconds + 2;
+        if (!poll_error.empty()) view.error = "Cannot reach the relay: " + poll_error;
+        else if (view.error.rfind("Cannot reach the relay", 0) == 0) view.error.clear();
+        if (apply_setup_reply(reply)) apply_settings();
+      } else if (view.seconds >= setup_poll_at && setup_poll_start(pending_config)) {
+        static int started = 0;
+        if (started++ < 3) setup_debug("poll start #%d origin=%s mode=%s provider=%s", started,
+                                       pending_config.server_url, pending_config.build_mode,
+                                       pending_config.hybrid_provider);
+        setup_poll_at = view.seconds + 1e9f;  // re-armed when the reply lands
+      }
+    }
+    if (folder_install && install_active) {
+      const uint64_t total = worker.install_total.load(), done = worker.install_done.load();
+      view.progress = total ? int(std::min<uint64_t>(100, done * 100 / total)) : 0;
+      const std::string stage = worker.install_stage();
+      if (!stage.empty()) {
+        const bool file = stage.find('/') != std::string::npos || stage.find('.') != std::string::npos;
+        view.status = (file ? "Copying " + stage : stage) + "  (" + std::to_string(done >> 20) + " of " +
+                      std::to_string(total >> 20) + " MB)";
+      }
+    }
+    if (worker_started && mixer.active_voices() == 0) {
+      uint64_t speech_gen = 0;
+      std::string chunk;
+      if (worker.take_speech_chunk(speech_gen, chunk)) {
+        if (speech_gen == gate.generation && !exit_pending && read_speech(chunk, speech)) {
+          speech_clip = {speech.data(), speech.size() / 2};
+          mixer.play_clip(&speech_clip, {});
+        }
+        unlink(chunk.c_str());
+      }
+    }
     frames++;
     fps_seconds += elapsed;
     if (fps_seconds > .5) {
@@ -369,6 +548,12 @@ int main() {
         } else if (res.work.type == muse::Task::init) {
           if (res.rc) view.model = "Local engine unavailable";
           else if (res.backend.empty()) view.model = view.local ? "Local language model + Whisper tiny.en" : "Whisper tiny.en / Muse development";
+          // The voice engine is only reported after Muse first speaks (the neural
+          // voice loads on demand), so say that instead of an endless "Loading voice".
+          if (res.rc) view.speech = "Voice unavailable";
+          else if (view.speech == "Loading voice")
+            view.speech = !strcmp(cfg.speech_mode, "neural") ? "Neural voice, loads when Muse first speaks"
+                                                             : "eSpeak NG voice ready";
           view.status = res.rc ? "Local engine unavailable; check diagnostics."
                                : "Local voice engines ready.";
           view.model_ready=view.local && cfg.coding_model_path[0] && !res.rc && !res.coding_model_unavailable;
@@ -381,7 +566,9 @@ int main() {
             view.error=res.coding_model_unavailable ? res.error : "";
           }
         } else if (res.work.type == muse::Task::speak) {
-          if (!res.rc && res.work.generation == gate.generation &&
+          if (!res.rc && res.speech_chunks > 0) {
+            // Already playing sentence by sentence; the full WAV would repeat it.
+          } else if (!res.rc && res.work.generation == gate.generation &&
               !exit_pending && mixer.active_voices() == 0 &&
               read_speech(res.path, speech)) {
             speech_clip = {speech.data(), speech.size() / 2};
@@ -478,7 +665,8 @@ int main() {
             case muse::Task::approve:
               if (muse_job(&gate, res.work.generation, res.job.c_str()) == 0) {
                 view.screen = muse::Screen::working;
-                view.detail = "Muse is compiling your approved plan.";
+                view.detail = "Muse is writing and opti3 is compiling your approved app.";
+                build_started = view.seconds;
                 poll_at = view.seconds;
               }
               break;
@@ -493,15 +681,40 @@ int main() {
                   w.manifest = res.status;
                   if (!worker.submit(w))
                     fail("Download could not be queued.");
-                  else
+                  else if (res.status.folder_sha256[0]) {
+                    install_active = true;
+                    folder_install = true;
+                    view.progress = 0;
+                    view.detail = std::string("Installing ") + res.status.folder_name + " on your console.";
+                    view.status = "Downloading and checking every file.";
+                  } else
                     view.detail = "Downloading and checking your build.";
                 }
               } else if (!strcmp(res.status.state, "error"))
                 fail(res.status.detail);
-              else
+              else {
+                // Live step from the relay ("Waiting for Muse source", "Compiling 71 of 107 files"...).
+                const int waited = int(view.seconds - build_started);
+                view.status = std::string(res.status.detail[0] ? res.status.detail : "Building") + "   |   " +
+                              std::to_string(waited / 60) + " min " + std::to_string(waited % 60) + " s";
                 poll_at = view.seconds + 1.5;
+              }
               break;
             case muse::Task::download:
+              if (res.work.manifest.folder_sha256[0]) {
+                // Folder app installed through ShadowMountPlus by the worker.
+                (void)muse_artifact_verified(&gate, res.work.generation);
+                (void)muse_dispatch(&gate);
+                install_active = folder_install = false;
+                view.progress = -1;
+                view.screen = muse::Screen::home;
+                view.detail = std::string("Installed ") + res.work.manifest.folder_name +
+                              ". Open it from your PS5 home screen.";
+                view.status = "Ready for your next idea.";
+                muse_reset(&gate);
+                pad.rumble(.3f, .18f);
+                break;
+              }
               if (muse_artifact_verified(&gate, res.work.generation) == 0) {
                 artifact = res.path;
                 const bool package = !strcmp(res.work.manifest.kind, "pkg");
@@ -676,7 +889,9 @@ int main() {
           snprintf(pending_config.hybrid_provider,sizeof pending_config.hybrid_provider,"muse");
           pending_config.phone_port=0;
           open_model_setup=true;
-          if (configured && !muse_config_validate(&pending_config,config_error,sizeof config_error)) apply_settings();
+          // Local needs no typed settings any more; only fall back to the
+          // setup screen if the saved settings fail validation.
+          if (!muse_config_validate(&pending_config,config_error,sizeof config_error)) apply_settings();
           else setup();
         }
       }
@@ -779,68 +994,18 @@ int main() {
         } else {
           snprintf(field(pending_config,index),field_cap(index),"%s",view.edit.c_str());
           if (index == 1 && pending_config.server_url[0]) {
+            // Ask the relay for the token (and any phone-submitted config) off
+            // the input thread; the reply is applied in the frame loop.
             view.qr_url = std::string(pending_config.server_url) + "/setup";
-            muse_client tmp_c{};
-            muse_client_init(&tmp_c, &pending_config);
-            unsigned char *sc_body = nullptr;
-            size_t sc_len = 0;
-            bool sc_full = false;
-            if (!muse_client_http(&tmp_c, pending_config.server_url, "GET",
-                                  "/setup-config", nullptr, nullptr, 0,
-                                  8192, &sc_body, &sc_len) && sc_body && sc_len) {
-              auto sc_extract = [](const char *json, size_t len, const char *key,
-                                   char *out, size_t cap) -> bool {
-                std::string h(json, len);
-                std::string pat = "\"" + std::string(key) + "\"";
-                auto p = h.find(pat);
-                if (p == std::string::npos) return false;
-                p = h.find('"', p + pat.size());
-                if (p == std::string::npos) return false;
-                ++p;
-                auto e = h.find('"', p);
-                if (e == std::string::npos || e - p + 1 > cap) return false;
-                snprintf(out, cap, "%.*s", int(e - p), json + p);
-                return true;
-              };
-              const char *sc_json = reinterpret_cast<const char *>(sc_body);
-              sc_extract(sc_json, sc_len, "relay_token",
-                         pending_config.relay_token, sizeof pending_config.relay_token);
-              sc_extract(sc_json, sc_len, "shadowmount_url",
-                         pending_config.shadowmount_url, sizeof pending_config.shadowmount_url);
-              sc_extract(sc_json, sc_len, "ps5lm_url",
-                         pending_config.ps5lm_url, sizeof pending_config.ps5lm_url);
-              sc_extract(sc_json, sc_len, "speech_url",
-                         pending_config.speech_url, sizeof pending_config.speech_url);
-              bool got_ip = sc_extract(sc_json, sc_len, "console_ip",
-                                       pending_config.console_ip, sizeof pending_config.console_ip);
-              bool got_su = sc_extract(sc_json, sc_len, "server_url",
-                                       pending_config.server_url, sizeof pending_config.server_url);
-              if (got_ip && got_su && pending_config.relay_token[0]) {
-                sc_full = true;
-                view.error = "All fields filled from phone — applying now.";
-              } else if (pending_config.relay_token[0]) {
-                view.error = "Token pre-filled from relay — press R1 through optional fields.";
-              }
-            }
-            free(sc_body);
-            if (sc_full) {
-              apply_settings();
-            } else {
-              if (view.field_index+1<int(setup_fields.size())) {
-                ++view.field_index; view.edit=field(pending_config,setup_fields[view.field_index]);
-                view.field=fields[setup_fields[view.field_index]];
-                view.secret_edit=setup_fields[view.field_index]==5;
-                view.key=0; view.caps=false;
-              } else apply_settings();
-            }
-          } else {
+            setup_poll_at = view.seconds;
+            setup_debug("relay address confirmed: '%s'", pending_config.server_url);
+          }
           if (view.field_index+1<int(setup_fields.size())) {
             ++view.field_index; view.edit=field(pending_config,setup_fields[view.field_index]);
             view.field=fields[setup_fields[view.field_index]];
             view.secret_edit=setup_fields[view.field_index]==5;
             view.key=0; view.caps=false;
           } else apply_settings();
-          }
         }
       }
     } else {

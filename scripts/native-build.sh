@@ -26,8 +26,19 @@ for a in archives:
     if not Path(a).is_file():raise SystemExit('Missing archive: '+a)
 (s/'.deps/inference/libmuse-group.a').write_text('GROUP (\n'+ '\n'.join('"'+a+'"' for a in archives)+'\n)\n')
 PY
+# Import stub for the system microphone module (never packaged; it only tells the
+# linker which libSceAudioIn.sprx functions the title imports). Every name here was
+# checked against the console's libSceAudioIn.sprx NIDs on FW 12.40.
+stubs="$stage/.deps/native-stubs"
+mkdir -p "$stubs"
+: > "$stubs/libSceAudioIn.c"
+for name in sceAudioInInit sceAudioInOpen sceAudioInInput sceAudioInClose sceAudioInGetSilentState; do
+  printf 'void %s(void) {}\n' "$name" >> "$stubs/libSceAudioIn.c"
+done
+/opt/ps5-payload-sdk/bin/prospero-clang -O2 -fPIC -c "$stubs/libSceAudioIn.c" -o "$stubs/libSceAudioIn.o"
+/opt/ps5-payload-sdk/bin/prospero-lld --shared -soname libSceAudioIn.sprx -o "$stubs/libSceAudioIn.so" "$stubs/libSceAudioIn.o"
 cd "$stage"
-make app BUILD_JOBS="${MUSE_BUILD_JOBS:-1}" APP_DEFINITIONS="MUSE_LOCAL_INFERENCE=1 LUA_USE_C89=1" APP_INCLUDE_PATHS=src/third_party/lua APP_STATIC_ARCHIVES=.deps/inference/libmuse-group.a
+make app BUILD_JOBS="${MUSE_BUILD_JOBS:-1}" APP_DEFINITIONS="MUSE_LOCAL_INFERENCE=1 LUA_USE_C89=1" APP_INCLUDE_PATHS=src/third_party/lua APP_STATIC_ARCHIVES=.deps/inference/libmuse-group.a APP_IMPORT_STUBS=.deps/native-stubs/libSceAudioIn.so
 cd /work
 if [[ ${MUSE_SKIP_FINAL_STAGE:-0} == 1 ]]; then exit 0; fi
 if [[ ${MUSE_GPU:-0} == 1 ]]; then

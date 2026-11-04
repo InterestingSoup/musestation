@@ -1,0 +1,99 @@
+# PS5 rules for generated native apps
+
+Read this before writing source for an `approved_job`. Every rule below was
+verified on the owner's PS5 (firmware 12.40) or is required by the fixed
+native kit. The relay checks the rules marked **[gate]** before compiling; a
+violation fails the build with a fix hint, and you may resubmit corrected
+source for the same job (see [Automatic fixes](#automatic-fixes)).
+
+## What works
+
+- One C++20 program: `main.cpp` plus optional `include/*.h|.hpp`, built
+  against the homebrew UI toolkit (`gfx/`, `ui/`, `core/`, `audio/`,
+  `platform/ps5/`). [example/main.cpp](example/main.cpp) is a complete,
+  working app; Muse's own counter app (job `j7bd07ff…`, PPSA99001) ran
+  cleanly on the console with a loading screen and DualSense input.
+- Rendering with `hui::gfx::Renderer` / `DrawList`: rounded rects, lines,
+  triangles, stars, gradients, glass panels, SDF text with the kit fonts in
+  `/app0/assets/fonts/`, and textured images (see [Images](#images)).
+- DualSense input through `platform/ps5/pad.hpp` and `core/input.hpp`
+  (Cross = confirm, Circle = back), rumble, and `audio/` mixer sounds.
+- Saving small files with `hui::save::read_file` / `write_file`
+  (`core/save_file.hpp`) under `/download0/`.
+
+## Rules
+
+1. **[gate] End through `hui::sys::quit()`.** Never `exit()`, `abort()` or a
+   return from `main`. Make Circle (or Options) quit.
+2. **[gate] No networking.** Generated apps get no network access, and the
+   PS5 title sandbox blocks BSD `socket()` anyway.
+3. **[gate] No stdio/iostream file reads.** `fread`/`fgets`/`std::ifstream`
+   reading to end-of-file reports an error on the title filesystem. Use
+   `hui::save::read_file` (exact `read()` loop).
+4. **[gate] No exceptions or RTTI.** The kit compiles with
+   `-fno-exceptions -fno-rtti`: no `throw`, `try`/`catch`, `typeid`,
+   `dynamic_cast`. Return error values instead.
+5. **[gate] No processes or dynamic loading**: no `system`, `popen`, `fork`,
+   `exec*`, `dlopen`.
+6. **[gate] Only kit and standard headers.** No SDL, GLES/Vulkan headers,
+   or anything that is not in the kit.
+7. Keep every frame under 16 ms: no blocking waits or long loops on the
+   render thread. Animate with the frame delta time.
+8. The screen is 1920×1080. Leave a 64 px safe margin for TV overscan.
+9. A loading or splash screen should last at most ~2 seconds and must not
+   block input.
+
+## Images
+
+You can generate pictures (logo, background, sprites) and send them in the
+same source submission, as base64 PNG data in an optional `images` object.
+Nothing is fetched from the internet.
+
+```json
+{
+  "schema": 1, "type": "source", "job_id": "…", "approved_revision": "…",
+  "language": "cpp",
+  "files": {"main.cpp": "…"},
+  "images": {"logo.png": "<base64 PNG>", "background.png": "<base64 PNG>"}
+}
+```
+
+Limits: up to 8 images; names like `logo.png` (lowercase letters, digits,
+underscore); 8-bit non-interlaced PNG (RGB, RGBA, grey or palette); at most
+1024×1024 pixels each and 3 MiB of decoded pixels in total (e.g. one
+1024×512 logo plus a 512×512 background). Scale them when drawing.
+
+The relay converts them into `include/muse_images.hpp` (do not send that
+file yourself). Use it like this:
+
+```cpp
+#include "include/muse_images.hpp"
+// once, after the renderer is created:
+const std::uint32_t logo = muse_images::upload(renderer, muse_images::logo);
+// every frame:
+d.image(logo, {760, 300, 400, 200}, hui::gfx::kFullUv, hui::gfx::Color::rgb(0xffffff));
+```
+
+With images, the source hash covers `{"files": …, "images": …}` (canonical
+JSON); without images it remains the hash of the file map alone.
+
+## Automatic fixes
+
+If the rules gate or the compiler fails, the `result` event has
+`"fix_allowed": true`, `attempts`, `attempts_left` and a `diagnostics`
+reference. Read the diagnostics, fix the code and POST corrected source to
+`/provider/sources` for the **same** `job_id` and `approved_revision`. You
+get 3 attempts in total for one approval; after the third failure the result
+has `fix_allowed: false` and the owner must submit a new request. Do not
+change what the app does while fixing: the plan was approved as written.
+
+## Reference homebrew
+
+For features these rules do not cover yet, look at how working PS5 homebrew
+does it (read, do not copy code without its licence):
+
+- Toolkit and examples: <https://github.com/blackbearreloaded/ps5-homebrew-ui>
+- ProsperoStore (a native title app with sandbox-safe networking, sceHttp):
+  <https://github.com/darkxex/ProsperoStore>
+- PS5 payload SDK (system library stubs, crt): <https://github.com/ps5-payload-dev/sdk>
+- MuseStation itself: `native/src/` in this repository.

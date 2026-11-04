@@ -15,6 +15,14 @@ typedef struct {
     int use_gpu;         /* selects layers/mtmd GPU use; not hardware verification */
     int max_frames;      /* per text chunk, default 360 (30 seconds at 12 Hz) */
     int require_gpu;     /* reject before WAV commit unless live projector has GPU buffers */
+    /* Optional speaker reference WAV. The Base model invents a new voice for
+     * every chunk without one; when the file is absent, the first chunk of at
+     * least 1.5 s is saved there and reused, so one voice persists across replies. */
+    const char *voice_ref;
+    /* Optional early playback: each chunk is also written as a standalone WAV
+     * (<path>.chunk<N>.wav) and announced before the next chunk is generated. */
+    void (*on_chunk)(void *context, const char *wav_path, int index);
+    void *chunk_context;
 } muse_neural_tts_config;
 typedef struct {
     int sample_rate;

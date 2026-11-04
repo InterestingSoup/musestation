@@ -90,7 +90,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
               " of " + std::to_string(v.step_count) + "  /  D-pad selects a key. X types it. R1 continues.",
           96, 350, 27, muted);
     card(d, {96, 390, 1728, 95});
-    const char *empty_value = v.screen == Screen::model_url ? "https://huggingface.co/owner/repo/resolve/main/model.gguf" : !request && (v.step_count==1 || v.field_index==4) ? "Optional: leave blank to use typed requests"
+    const char *empty_value = v.screen == Screen::model_url ? "https://huggingface.co/owner/repo/resolve/main/model.gguf" : !request && v.step_count==1 ? "Optional: leave blank to use the built-in microphone"
                               : (v.field_index == 2 || v.field_index == 3)
                                   ? "Leave blank to use the bundled engines"
                                   : v.secret_edit ? "Enter your relay console token; it stays hidden" : "Enter a value";
@@ -105,28 +105,32 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
           126, 451, 30, v.edit.empty() ? muted : white);
     const char *keys = v.secret_edit ? "0123456789abcdef" : keyboard_keys();
     for (int i = 0; keys[i]; ++i) {
-      float x = 96 + float(i % 10) * 160, y = 520 + float(i / 10) * 58;
+      float x = 96 + float(i % 10) * 146, y = 520 + float(i / 10) * 58;
       bool focus = i == v.key;
       d.rounded_rect({x, y, 129, 48}, 13, focus ? mint : panel);
       char ch = keys[i];
       if (!v.secret_edit && v.caps && ch >= 'a' && ch <= 'z')
         ch = (char)(ch - 32);
-      label(d, f.mono, std::string(1, ch), x + 51, y + 37, 27,
-            focus ? gfx::Color::rgb(0x102d30) : white);
+      gfx::Color ink = focus ? gfx::Color::rgb(0x102d30) : white;
+      if (ch == ' ') label(d, f.regular, "space", x + 36, y + 32, 20, ink);
+      else label(d, f.mono, std::string(1, ch), x + 51, y + 37, 27, ink);
     }
     // Caps indicator and hint
     gfx::Color caps_col = v.caps ? mint : muted;
-    label(d, f.regular, v.caps ? "△ CAPS ON" : "△ CAPS", 96, 760, 22, caps_col);
+    label(d, f.regular, v.caps ? "Triangle: CAPS ON" : "Triangle: caps", 96, 790, 22, caps_col);
     // QR code for phone setup form
     if (!v.qr_url.empty() && !v.secret_edit) {
       uint8_t qr[qrcodegen_BUFFER_LEN_MAX];
       uint8_t tmp[qrcodegen_BUFFER_LEN_MAX];
       if (qrcodegen_encodeText(v.qr_url.c_str(), tmp, qr, qrcodegen_Ecc_LOW,
                                qrcodegen_VERSION_MIN, 10, qrcodegen_Mask_AUTO, true)) {
+        // Whole-pixel modules plus a 4-module white quiet zone, right-aligned
+        // to the content edge beside the keyboard, so phones scan reliably.
         int sz = qrcodegen_getSize(qr);
-        float cell = 210.f / float(sz);
-        float qx = 1690.f, qy = 490.f;
-        d.rounded_rect({qx - 8, qy - 8, cell * sz + 16, cell * sz + 16}, 8, white);
+        float cell = std::floor(232.f / float(sz + 8));
+        float box = cell * float(sz + 8), bx = 1824.f - box, by = 512.f;
+        d.rounded_rect({bx, by, box, box}, 10, white);
+        float qx = bx + 4 * cell, qy = by + 4 * cell;
         for (int row = 0; row < sz; ++row) {
           for (int col = 0; col < sz; ++col) {
             if (qrcodegen_getModule(qr, col, row)) {
@@ -135,7 +139,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
             }
           }
         }
-        label(d, f.regular, "Scan to fill from phone", qx - 8, qy + cell * sz + 26, 18, muted);
+        label(d, f.regular, "Scan to fill from phone", bx, by + box + 30, 20, muted);
       }
     }
     label(d, f.regular, v.error, 96, 963, 24, gfx::Color::rgb(0xffb388));
@@ -226,6 +230,8 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
     const bool err = v.screen == Screen::error;
     label(d, f.semibold,
           v.recording ? "LISTENING TO YOU"
+          // Plan polls run the worker briefly every 2 s; keep this heading steady.
+          : v.screen == Screen::planning ? "WAITING FOR MUSE"
           : v.busy    ? "WORK IN PROGRESS"
           : err       ? "ACTION NEEDED"
           : v.screen == Screen::project ? "SAVED PROJECT"
@@ -268,7 +274,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
   d.line(96, 995, 1824, 995, 1, muted.with_alpha(.25f));
   label(d, f.regular,
         v.screen == Screen::model_url ? "X  Type     Square  Delete     R1  Download     Circle  Back"
-        : setup ? "X  Type     Square  Delete     R1  Continue     Circle  Back"
+        : setup ? (v.secret_edit ? "X  Type     Square  Delete     R1  Continue     Circle  Back" : "X  Type     Square  Delete     Triangle  Caps     R1  Continue     Circle  Back")
         : v.screen == Screen::models ? v.downloading_model ? "Circle  Cancel download" : v.model_ready ? "X  Download recommended     Square  Custom URL     R1  Continue     Circle  Modes" : "X  Download recommended     Square  Custom URL     Circle  Modes"
         : v.screen == Screen::modes ? v.mode_choice==1 ? "Left / Right  Mode     Up / Down  Budget     X  Select     Circle  Back" : "Left / Right  Mode     X  Select     Circle  Back"
         : v.screen == Screen::library ? "D-pad  Choose     X  Open project     Circle  Back"

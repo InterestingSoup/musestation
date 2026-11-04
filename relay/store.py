@@ -11,6 +11,7 @@ import errno
 import fcntl
 import hashlib
 import json
+import shutil
 import os
 from pathlib import Path
 import re
@@ -22,6 +23,8 @@ import uuid
 
 MAX_JSON = 2 * 1024 * 1024  # escaped source envelope; actual code <= 1 MiB
 MAX_LOG = 8 * 1024 * 1024
+from .images import ImageError, validate_images
+
 MAX_PACKAGE = 1024 * 1024 * 1024
 ID = re.compile(r"[a-z][0-9a-f]{32}\Z")
 SHA = re.compile(r"[0-9a-f]{64}\Z")
@@ -127,7 +130,7 @@ def identifier(value, prefix=None):
 
 
 def source_manifest(value):
-    fields(value, ("schema", "type", "job_id", "approved_revision", "language", "files"))
+    fields(value, ("schema", "type", "job_id", "approved_revision", "language", "files"), ("images",))
     if type(value["schema"]) is not int or value["schema"] != 1 or value["type"] != "source" or value["language"] != "cpp":
         raise RelayError(400, "Expected schema-1 C++ source submission")
     identifier(value["job_id"], "j")
@@ -145,7 +148,17 @@ def source_manifest(value):
         total += len(text(body, 256 * 1024, "source file").encode("utf-8"))
     if total > 1024 * 1024:
         raise RelayError(413, "Source exceeds 1 MiB")
-    return hashlib.sha256(canonical(files)).hexdigest()
+    if "images" in value:
+        try:
+            validate_images(value["images"])
+        except ImageError as exc:
+            raise RelayError(400, f"Invalid image: {exc}") from exc
+    return source_digest(files, value.get("images"))
+
+
+def source_digest(files, images=None):
+    """SHA-256 of the canonical file map; with images, of {"files", "images"}."""
+    return hashlib.sha256(canonical(files if not images else {"files": files, "images": images})).hexdigest()
 
 
 class SafeDir:
@@ -290,6 +303,8 @@ class Store:
             job_columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
             if "inventory_json" not in job_columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN inventory_json TEXT")
+            if "attempt" not in job_columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN attempt INTEGER NOT NULL DEFAULT 1")
         try:
             self.reconcile_title_ledger()
         except BaseException:
@@ -563,7 +578,7 @@ class Store:
             job = "j" + uuid.uuid4().hex
             identity = self.reserve_identity(job, inventory)
             db.execute("INSERT INTO jobs(id,plan_id,revision,idem,state,detail,identity_json,created,inventory_json) VALUES(?,?,?,?,'awaiting_source',?,?,?,?)",
-                       (job, id, revision, idem, "Approved; waiting for Muse source", canonical(identity).decode(), time.time(), canonical(inventory).decode()))
+                       (job, id, revision, idem, "Approved. Muse is writing the code (usually 2 to 5 minutes)", canonical(identity).decode(), time.time(), canonical(inventory).decode()))
             self.event(db, "approved_job", {"schema": 1, "type": "approved_job", "job_id": job,
                 "request_id": id, "approved_revision": revision, "transcript": plan["transcript"],
                 "text": plan["text"], "artifact_kind": "pkg", "identity": identity,
@@ -583,7 +598,7 @@ class Store:
             elif row["state"] != "awaiting_source":
                 raise RelayError(409, "Job no longer accepts source")
             else:
-                db.execute("UPDATE jobs SET source_json=?,source_sha=?,state='queued',detail='Source accepted; waiting for compiler worker' WHERE id=?",
+                db.execute("UPDATE jobs SET source_json=?,source_sha=?,state='queued',detail='Muse sent the code. Starting the PS5 compiler' WHERE id=?",
                            (canonical(value).decode(), digest, id))
         return {"accepted": True, "job_id": id, "source_sha256": digest}
 
@@ -664,22 +679,42 @@ class Store:
             row = db.execute("SELECT * FROM jobs WHERE state='queued' ORDER BY created,id LIMIT 1").fetchone()
             if row is None:
                 return None
-            db.execute("UPDATE jobs SET state='building',detail='Compiling approved source',started=? WHERE id=?", (time.time(), row["id"]))
+            db.execute("UPDATE jobs SET state='building',detail='Preparing the PS5 compiler',started=? WHERE id=?", (time.time(), row["id"]))
             return {"id": row["id"], "revision": row["revision"],
                     "source_manifest": json.loads(row["source_json"]), "identity": json.loads(row["identity_json"])}
 
-    def fail_job(self, id, detail):
+    MAX_ATTEMPTS = 3
+
+    def fail_job(self, id, detail, retryable=True):
+        """A failed compile of the same approved plan may be fixed by Muse up to
+        MAX_ATTEMPTS times without a new approval (owner decision 2026-11-04): the
+        job returns to awaiting_source and Muse receives diagnostics with
+        fix_allowed. Only the source changes; the approved revision and title stay."""
         identifier(id, "j")
         detail = text(detail, 1023, "build failure")
         with self.db(True) as db:
             row = self.row(db, "jobs", id)
             if row["state"] in ("done", "error"):
                 return
-            db.execute("UPDATE jobs SET state='error',detail=? WHERE id=?", (detail, id))
+            attempt = row["attempt"] if "attempt" in row.keys() else 1
             diagnostics = self.diagnostics_reference(db, id)
+            fixable = retryable and attempt < self.MAX_ATTEMPTS
+            if fixable:
+                status = f"Build attempt {attempt} of {self.MAX_ATTEMPTS} failed. Muse is fixing the code"
+                db.execute("UPDATE jobs SET state='awaiting_source',detail=?,source_json=NULL,source_sha=NULL,attempt=? WHERE id=?",
+                           (status, attempt + 1, id))
+            else:
+                db.execute("UPDATE jobs SET state='error',detail=? WHERE id=?", (detail, id))
             self.event(db, "result", {"schema": 1, "type": "result", "job_id": id,
                 "approved_revision": row["revision"], "state": "error", "detail": detail,
-                "attempts": 1, "retry_requires_new_approval": True, "diagnostics": diagnostics})
+                "attempts": attempt, "max_attempts": self.MAX_ATTEMPTS, "fix_allowed": fixable,
+                "attempts_left": self.MAX_ATTEMPTS - attempt if fixable else 0,
+                "retry_requires_new_approval": not fixable, "diagnostics": diagnostics})
+        if fixable:
+            # The builder refuses to reuse a job directory; keep this attempt's files for triage.
+            work = self.path / "work"
+            with contextlib.suppress(FileNotFoundError):
+                os.rename(work / id, work / f"{id}.attempt{attempt}")
 
     @staticmethod
     def diagnostics_reference(db, id):
@@ -730,8 +765,15 @@ class Store:
         with self.db() as db:
             ids = [row[0] for row in db.execute("SELECT id FROM jobs WHERE state='building'")]
         for id in ids:
-            self.fail_job(id, "Compiler worker interrupted; this attempt is not automatically repeated. Submit a new request for review and approval.")
+            self.fail_job(id, "Compiler worker interrupted; this attempt is not automatically repeated. Submit a new request for review and approval.", retryable=False)
         return len(ids)
+
+    def set_build_detail(self, id, detail):
+        """Live progress text for a building job (polled by the console)."""
+        identifier(id, "j")
+        detail = str(detail)[:200]
+        with self.db(True) as db:
+            db.execute("UPDATE jobs SET detail=? WHERE id=? AND state='building'", (detail, id))
 
     def finish_job(self, id, result):
         identifier(id, "j")
@@ -792,11 +834,100 @@ class Store:
                         os.unlink(temporary, dir_fd=dest.fd)
             manifest = {"state": "done", "kind": "pkg", "size": size, "sha256": digest,
                         "title_id": identity["title_id"], "content_id": identity["content_id"]}
+            folder = self._publish_folder(id, out, result, identity)
+            if folder:
+                manifest["folder"] = folder
             db.execute("UPDATE jobs SET state='done',detail='Compile and package verification completed; hardware verification pending',manifest_json=? WHERE id=?", (canonical(manifest).decode(), id))
             self.event(db, "result", {"schema": 1, "type": "result", "job_id": id,
                 "approved_revision": row["revision"], **manifest, "source_sha256": row["source_sha"],
                 "hardware_verified": False, "diagnostics": self.diagnostics_reference(db, id)})
         return manifest
+
+    FOLDER_PATH = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(/[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}){0,7}")
+
+    def _publish_folder(self, id, out, result, identity):
+        """Copy the builder's ShadowMountPlus folder app into artifacts/<id>.folder.
+
+        Each file is re-hashed while copying and must match folder-manifest.json,
+        which is itself bound to the build manifest by its SHA-256. The console
+        downloads that list and each file, then installs into /data/homebrew."""
+        if not result.get("folder_manifest"):
+            return None
+        listing = Path(result["folder_manifest"])
+        source_root = out / "folder" / identity["title_id"]
+        if listing != out / "folder-manifest.json" or Path(result.get("folder_path", "")) != source_root:
+            raise RelayError(400, "Builder folder app must be in the assigned output directory")
+        raw = listing.read_bytes()
+        if len(raw) > 512 * 1024:
+            raise RelayError(400, "Folder manifest is too large")
+        value = json.loads(raw)
+        files = value.get("files")
+        if (value.get("schema") != 1 or value.get("format") != "shadowmount-folder" or
+                value.get("title_id") != identity["title_id"] or value.get("content_id") != identity["content_id"] or
+                not isinstance(files, list) or not 0 < len(files) <= 4096):
+            raise RelayError(400, "Folder manifest identity mismatch")
+        dest_root = self.path / "artifacts" / (id + ".folder")
+        if dest_root.exists():
+            raise RelayError(409, "Folder app already published")
+        total = 0
+        seen = set()
+        try:
+            for entry in files:
+                rel, nbytes, sha = entry.get("path"), entry.get("bytes"), entry.get("sha256")
+                if (not isinstance(rel, str) or not self.FOLDER_PATH.fullmatch(rel) or rel in seen or
+                        type(nbytes) is not int or not 0 <= nbytes <= MAX_PACKAGE or not isinstance(sha, str) or not SHA.fullmatch(sha)):
+                    raise RelayError(400, "Folder manifest has an invalid entry")
+                seen.add(rel)
+                total += nbytes
+                if total > MAX_PACKAGE * 2:
+                    raise RelayError(400, "Folder app is too large")
+                src = source_root / rel
+                if src.is_symlink() or any(parent.is_symlink() for parent in src.parents if parent != Path("/")):
+                    raise RelayError(400, "Folder app may not contain symlinks")
+                target = dest_root / rel
+                target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                digest = hashlib.sha256()
+                copied = 0
+                fd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW)
+                with os.fdopen(fd, "rb") as inp, open(target, "xb") as dst:
+                    while chunk := inp.read(65536):
+                        copied += len(chunk)
+                        digest.update(chunk)
+                        dst.write(chunk)
+                if copied != nbytes or digest.hexdigest() != sha:
+                    raise RelayError(400, f"Folder file hash mismatch: {rel}")
+            # The console's bounded JSON parser cannot hold thousands of entries, so it
+            # receives one "sha256 bytes path" line per file; this text is what is hashed.
+            listing_text = "".join(f"{e['sha256']} {e['bytes']} {e['path']}\n"
+                                   for e in sorted(files, key=lambda e: e["path"])).encode()
+            (self.path / "artifacts" / (id + ".folder.txt")).write_bytes(listing_text)
+        except BaseException:
+            shutil.rmtree(dest_root, ignore_errors=True)
+            raise
+        return {"sha256": hashlib.sha256(listing_text).hexdigest(), "size": total, "files": len(files),
+                "name": identity.get("name", identity["title_id"])}
+
+    def folder_manifest(self, id):
+        manifest = self.status(id)
+        if manifest.get("state") != "done" or not manifest.get("folder"):
+            raise RelayError(404, "No folder app for this build")
+        raw = (self.path / "artifacts" / (id + ".folder.txt")).read_bytes()
+        if hashlib.sha256(raw).hexdigest() != manifest["folder"]["sha256"]:
+            raise RelayError(500, "Stored folder manifest hash mismatch")
+        return raw
+
+    def folder_file(self, id, rel):
+        entries = {}
+        for line in self.folder_manifest(id).decode().splitlines():
+            sha, nbytes, path = line.split(" ", 2)
+            entries[path] = int(nbytes)
+        if rel not in entries:
+            raise RelayError(404, "File is not part of this folder app")
+        fd = os.open(self.path / "artifacts" / (id + ".folder") / rel, os.O_RDONLY | os.O_NOFOLLOW)
+        if os.fstat(fd).st_size != entries[rel]:
+            os.close(fd)
+            raise RelayError(500, "Stored folder file length mismatch")
+        return fd, entries[rel]
 
     def artifact(self, id):
         manifest = self.status(id)

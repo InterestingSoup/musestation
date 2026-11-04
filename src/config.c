@@ -3,6 +3,7 @@
 #include "config.h"
 #include "json.h"
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -79,9 +80,13 @@ int muse_config_validate(const struct muse_config *c,char *e,size_t n){
     if(e&&n)*e=0;return 0;
 }
 int muse_config_load(const char *path,struct muse_config *c,char *e,size_t n){
-    FILE *f=fopen(path,"rb");if(!f)return fail(e,n,"Configuration unavailable; run setup");
-    char data[16385];size_t len=fread(data,1,sizeof(data),f);int read_error=ferror(f);fclose(f);
-    if(read_error||len>=sizeof(data))return fail(e,n,"Configuration is unreadable or exceeds 16 KiB");
+    /* Read exactly st_size bytes with read(): on the PS5 title filesystem, the
+     * libc stdio read to end-of-file sets the error flag (seen on FW 12.40). */
+    int fd=open(path,O_RDONLY);if(fd<0)return fail(e,n,"Configuration unavailable; run setup");
+    struct stat st;char data[16385];size_t len=0;int read_error=fstat(fd,&st)||st.st_size<0||st.st_size>=(off_t)sizeof(data);
+    while(!read_error&&len<(size_t)st.st_size){ssize_t got=read(fd,data+len,(size_t)st.st_size-len);if(got<0&&errno==EINTR)continue;if(got<=0){read_error=1;break;}len+=(size_t)got;}
+    close(fd);
+    if(read_error)return fail(e,n,"Configuration is unreadable or exceeds 16 KiB");
     struct muse_json j;if(muse_json_parse(&j,data,len)||j.tokens[0].type!='{')return fail(e,n,"Invalid configuration JSON");
     muse_config_defaults(c);
     /* Absence means a pre-MuseStation installation: retain its hybrid behavior. */

@@ -11,6 +11,8 @@ import shutil
 import stat
 import subprocess
 import time
+from .images import ImageError, header as image_header, validate_images
+from .rules import check as rules_check
 
 MAX_FILES = 32
 MAX_FILE_BYTES = 256 * 1024
@@ -63,8 +65,18 @@ def validate_source(manifest: dict) -> tuple[dict[str, str], str]:
         total += size
     if total > MAX_SOURCE_BYTES:
         raise BuildError('source exceeds 1 MiB total')
-    encoded = json.dumps(files, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
-    return dict(files), hashlib.sha256(encoded).hexdigest()
+    images = manifest.get('images')
+    hashed = files if not images else {'files': files, 'images': images}
+    encoded = json.dumps(hashed, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    files = dict(files)
+    if images:
+        if 'include/muse_images.hpp' in files:
+            raise BuildError('include/muse_images.hpp is generated from images; do not send it')
+        try:
+            files['include/muse_images.hpp'] = image_header(validate_images(images))
+        except ImageError as exc:
+            raise BuildError(f'invalid image: {exc}') from exc
+    return files, hashlib.sha256(encoded).hexdigest()
 
 
 def validate_identity(identity: dict) -> dict:
@@ -313,6 +325,35 @@ class Builder:
                 'title_id': identity['title_id'], 'content_id': identity['content_id'], 'version': identity['version'],
                 'verification_path': str(report_path), 'hardware_verified': False}
 
+    def _keep_folder(self, title: Path, native: Path, output: Path, identity: dict):
+        """Keep the verified native title as a ShadowMountPlus folder app.
+
+        MuseStation installs generated apps by writing this folder to
+        /data/homebrew/<TITLE_ID>/ and asking ShadowMountPlus to rescan; the .pkg
+        stays as a secondary artifact. Every file must match the compiler's own
+        hash manifest (native-files.json) before it is offered for download."""
+        try:
+            listed = json.loads((native / 'native-files.json').read_text())
+            expected = {entry['path']: entry for entry in listed}
+            actual = checked_tree(title, MAX_ARTIFACT_BYTES)
+            if set(expected) != set(actual):
+                raise ValueError('folder files differ from the compiler manifest')
+            for path, source in actual.items():
+                if expected[path]['bytes'] != source.stat().st_size or expected[path]['sha256'] != sha256(source):
+                    raise ValueError(f'folder file hash mismatch: {path}')
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            raise BuildError(f'folder app rejected: {exc}') from exc
+        folder = output / 'folder' / identity['title_id']
+        shutil.copytree(title, folder, symlinks=False)
+        files = [{'path': path, 'bytes': expected[path]['bytes'], 'sha256': expected[path]['sha256']}
+                 for path in sorted(expected)]
+        manifest = {'schema': 1, 'format': 'shadowmount-folder', 'title_id': identity['title_id'],
+                    'content_id': identity['content_id'], 'version': identity['version'], 'files': files,
+                    'bytes': sum(entry['bytes'] for entry in files)}
+        (output / 'folder-manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
+        return {'folder_path': str(folder), 'folder_manifest': str(output / 'folder-manifest.json'),
+                'folder_files': len(files), 'folder_bytes': manifest['bytes']}
+
     def build(self, job_dir, source_manifest, identity, output_dir):
         files, source_digest = validate_source(source_manifest)
         identity = validate_identity(identity)
@@ -331,6 +372,12 @@ class Builder:
             build.mkdir(mode=0o700)
         except FileExistsError as exc:
             raise BuildError('build already attempted; explicit new job required') from exc
+        # Known-bad PS5 patterns fail before compiling; Muse gets the hints and may fix them.
+        problems = rules_check(files)
+        if problems:
+            (job / 'rules.log').write_text('\n'.join(problems) + '\n')
+            raise BuildError('PS5 rules check failed (see relay/build/PS5-RULES.md): ' + ' | '.join(problems[:8]),
+                             [job / 'rules.log'])
         kit_digest = self._kit()
         compiler_id, package_id = self._image(self.compiler_image), self._image(self.package_image)
         inputs, native = build / 'input', build / 'native'
@@ -358,6 +405,7 @@ class Builder:
                 [(title, '/input', True), (output, '/output', False)], package=True),
                 name, package_log, output, self.package_timeout)
             result = self._verify(title, output, identity)
+            result.update(self._keep_folder(title, native, output, identity))
             result.update(source_sha256=source_digest, kit_sha256=kit_digest,
                           compiler_image=compiler_id, package_image=package_id,
                           compiler_log=str(compile_log), package_log=str(package_log),

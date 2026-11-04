@@ -13,6 +13,10 @@ the title identity. The builder cannot approve a plan or select its own title.
 
 ## Muse source contract
 
+**Read [PS5-RULES.md](PS5-RULES.md) first.** It lists what works on the PS5,
+the rules the relay checks before compiling, how to send generated images, and
+how to fix a failed build for the same approval (up to 3 attempts).
+
 ```json
 {
   "schema": 1,
@@ -32,8 +36,9 @@ the title identity. The builder cannot approve a plan or select its own title.
 directory separators; dot directories, traversal, absolute paths and empty
 segments are rejected. At most 32 files, 256 KiB per file, and 1 MiB total UTF-8
 are accepted. NUL and malformed UTF-8 are rejected. No makefiles, commands,
-environment overrides, dependency downloads, binary assets or metadata come
-from the source manifest. Include a project header with `#include "include/example.hpp"`.
+environment overrides, dependency downloads or metadata come from the source
+manifest; the only binary data allowed is the optional `images` object of PNG
+files described in [PS5-RULES.md](PS5-RULES.md#images). Include a project header with `#include "include/example.hpp"`.
 
 The SDK uses C++20 without exceptions or RTTI. The public homebrew UI toolkit's
 headers are available under `gfx/`, `ui/`, `core/`, `audio/` and `platform/ps5/`.

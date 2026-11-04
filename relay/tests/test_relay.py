@@ -158,6 +158,28 @@ class StoreCase(unittest.TestCase):
             db.execute("DELETE FROM meta WHERE key='exchange_export_after'")
         self.assertTrue(self.exchange.tick())
 
+    def test_three_failed_attempts_then_final_error(self):
+        job, revision = self.approved()
+        class Failure(Exception):
+            pass
+        class BuilderFixture:
+            def build(inner, job_dir, source, identity, output_dir):
+                raise Failure("Native source compile failed")
+        for attempt in (1, 2, 3):
+            fixed = self.source(job, revision)
+            fixed["files"] = {"main.cpp": f"// attempt {attempt}\nint main(){{}}\n"}
+            self.store.ingest_source(fixed)
+            self.assertTrue(run_one(self.store, BuilderFixture()))
+            event = self.store.outbox()["events"][-1]["payload"]
+            self.assertEqual(event["attempts"], attempt)
+            self.assertEqual(event["fix_allowed"], attempt < 3)
+        self.assertEqual(self.store.status(job)["state"], "error")
+        with self.assertRaises(RelayError):
+            self.store.ingest_source(self.source(job, revision))
+        for kept in (1, 2):
+            self.assertTrue((self.store.path / "work" / f"{job}.attempt{kept}" / "out").is_dir())
+        # A passing fourth build would need a new request and approval.
+
     def test_worker_rejects_mismatched_identity_and_hash(self):
         for tamper in ("sha256", "title_id", "artifact_path"):
             job, revision = self.approved()
@@ -253,7 +275,14 @@ class StoreCase(unittest.TestCase):
                 failure.log_paths = [log]
                 raise failure
         self.assertTrue(run_one(self.store, BuilderFixture()))
-        self.assertEqual(self.store.status(job)["state"], "error")
+        # Attempt 1 of 3 failed: Muse may fix the same approved plan without re-approval.
+        status = self.store.status(job)
+        self.assertEqual(status["state"], "building")
+        self.assertIn("Muse is fixing", status["detail"])
+        event = self.store.outbox()["events"][-1]["payload"]
+        self.assertTrue(event["fix_allowed"])
+        self.assertEqual((event["attempts"], event["attempts_left"]), (1, 2))
+        self.assertFalse(event["retry_requires_new_approval"])
         diagnostic = json.loads(self.store.diagnostic_bytes(job))
         self.assertTrue(diagnostic["files"][0]["truncated"])
         self.assertIn("undeclared identifier", diagnostic["files"][0]["tail"])
@@ -627,6 +656,25 @@ class HTTPCase(StoreCase):
         self.assertEqual(status, 200)
         self.assertFalse(json.loads(raw)["muse_connector_verified"])
 
+    def test_phone_setup_form_hands_config_to_console_once(self):
+        status, raw, headers = self.call(self.console, "GET", "/setup", auth=False)
+        self.assertEqual(status, 200)
+        self.assertIn("text/html", headers["Content-Type"])
+        self.assertIn(self.console_token.decode(), raw.decode())
+        status, raw, _ = self.call(self.console, "GET", "/setup-config", auth=False)
+        self.assertEqual(json.loads(raw), {"relay_token": self.console_token.decode(), "shadowmount_url": "http://127.0.0.1:10101"})
+        form = b"console_ip=192.168.4.56&server_url=http%3A%2F%2F192.168.5.54%3A8860&relay_token=ignored&ps5lm_url=&evil=1"
+        status, _, _ = self.call(self.console, "POST", "/setup", auth=False, raw=form,
+                                 headers={"Content-Type": "application/x-www-form-urlencoded"})
+        self.assertEqual(status, 200)
+        status, raw, _ = self.call(self.console, "GET", "/setup-config", auth=False)
+        self.assertEqual(json.loads(raw), {"console_ip": "192.168.4.56", "server_url": "http://192.168.5.54:8860",
+                                           "relay_token": self.console_token.decode()})
+        status, raw, _ = self.call(self.console, "GET", "/setup-config", auth=False)
+        self.assertNotIn("console_ip", json.loads(raw))
+        # Provider routes that parse queries keep working next to the form handler.
+        self.assertEqual(self.call(self.provider, "GET", "/provider/outbox?after=0", auth=True)[0], 200)
+
     def test_exact_content_length_artifact_and_logs(self):
         job, rev = self.approved()
         self.store.ingest_source(self.source(job, rev))
@@ -648,6 +696,42 @@ class HTTPCase(StoreCase):
         status, raw, _ = self.call(self.provider, "GET", "/provider/logs/" + id, auth=True)
         self.assertEqual(status, 200)
         self.assertEqual(raw, log)
+
+    def test_folder_app_published_and_served_exactly(self):
+        job, rev = self.approved()
+        self.store.ingest_source(self.source(job, rev))
+        files = {"eboot.bin": b"\x7fELF" + b"e" * 300, "sce_sys/param.json": b'{"titleId":"x"}'}
+        class BuilderFixture:
+            def build(inner, job_dir, source, identity, output_dir):
+                result = fixture_package(output_dir / "title.pkg", identity)
+                root = output_dir / "folder" / identity["title_id"]
+                for rel, data in files.items():
+                    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (root / rel).write_bytes(data)
+                listing = {"schema": 1, "format": "shadowmount-folder", "title_id": identity["title_id"],
+                           "content_id": identity["content_id"], "version": identity["version"],
+                           "files": [{"path": k, "bytes": len(v), "sha256": hashlib.sha256(v).hexdigest()} for k, v in sorted(files.items())],
+                           "bytes": sum(len(v) for v in files.values())}
+                (output_dir / "folder-manifest.json").write_text(json.dumps(listing))
+                return {**result, "folder_path": str(root), "folder_manifest": str(output_dir / "folder-manifest.json")}
+        self.assertTrue(run_one(self.store, BuilderFixture()))
+        manifest = self.store.status(job)
+        self.assertEqual(manifest["kind"], "pkg")
+        self.assertEqual(manifest["folder"]["files"], 2)
+        status, raw, _ = self.call(self.console, "GET", f"/build/{job}/folder")
+        self.assertEqual(status, 200)
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), manifest["folder"]["sha256"])
+        lines = raw.decode().splitlines()
+        self.assertEqual(len(lines), 2)
+        for line in lines:
+            sha, nbytes, rel = line.split(" ", 2)
+            status, data, headers = self.call(self.console, "GET", f"/build/{job}/folder/{rel}")
+            self.assertEqual(status, 200)
+            self.assertEqual(data, files[rel])
+            self.assertEqual(hashlib.sha256(data).hexdigest(), sha)
+            self.assertEqual(int(headers["Content-Length"]), int(nbytes))
+        self.assertEqual(self.call(self.console, "GET", f"/build/{job}/folder/../store.sqlite3")[0], 404)
+        self.assertEqual(self.call(self.console, "GET", f"/build/{job}/folder/eboot.bin", auth=False)[0], 401)
 
     def test_private_token_permissions(self):
         path = self.base / "token"

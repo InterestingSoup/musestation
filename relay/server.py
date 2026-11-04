@@ -233,8 +233,6 @@ button:active{{background:#3ad0b0}}
 <input name="ps5lm_url" placeholder="http://...">
 <label>Speech URL <span style="color:#5a7a80">(optional)</span></label>
 <input name="speech_url" placeholder="http://...">
-<label>Audio-In Module <span style="color:#5a7a80">(optional)</span></label>
-<input name="audio_in_module" placeholder="e.g. espeak">
 <label>Shadowmount URL <span style="color:#5a7a80">(optional)</span></label>
 <input name="shadowmount_url" value="http://127.0.0.1:10101">
 <button type="submit">Submit to PS5</button>
@@ -262,7 +260,6 @@ document.getElementById('f').onsubmit=async e=>{{
                 return
             if method == "POST" and path.path == "/setup":
                 raw_body = self.body(8192)
-                from urllib.parse import parse_qs
                 params = {k: v[0] for k, v in parse_qs(raw_body.decode("utf-8", errors="replace")).items() if v}
                 allowed = {"console_ip", "server_url", "relay_token", "ps5lm_url",
                            "speech_url", "audio_in_module", "shadowmount_url"}
@@ -278,6 +275,36 @@ document.getElementById('f').onsubmit=async e=>{{
                 return self.reply(status, value)
             if match and method == "POST" and match[2]:
                 return self.reply(200, app.store.approve(match[1], self.json_body(64 * 1024)))
+            match = re.fullmatch(r"/build/(j[0-9a-f]{32})/folder(?:/(.+))?", path.path)
+            if match and method == "GET":
+                if match[2] is None:
+                    raw = app.store.folder_manifest(match[1])
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.write(raw)
+                    self.close_connection = True
+                    return
+                fd, size = app.store.folder_file(match[1], match[2])
+                with os.fdopen(fd, "rb") as stream:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/octet-stream")
+                    self.send_header("Content-Length", str(size))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    remaining, deadline = size, time.monotonic() + 600
+                    while remaining and time.monotonic() < deadline:
+                        chunk = stream.read(min(65536, remaining))
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        remaining -= len(chunk)
+                    self.close_connection = True
+                return
             match = re.fullmatch(r"/build/(j[0-9a-f]{32})/(status|artifact)", path.path)
             if match and method == "GET":
                 if match[2] == "status":

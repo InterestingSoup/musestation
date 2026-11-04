@@ -15,6 +15,9 @@
 #include <string>
 #include <vector>
 #include <unistd.h>
+#include <cerrno>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 extern "C" int muse_mtmd_generation_buffers(const mtmd_context *, muse_neural_tts_stats *);
 
@@ -77,6 +80,38 @@ struct Output {
         if (!ok || std::rename(temporary.c_str(), path)) throw std::runtime_error("cannot commit neural speech WAV");
     }
 };
+
+// Exact-size read: on the PS5 title filesystem a stdio read to end-of-file
+// reports an error, so never read "until EOF" there.
+bool read_whole(const char *path, std::vector<unsigned char> &out) {
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) return false;
+    struct stat st{};
+    bool ok = !fstat(fd, &st) && st.st_size > 44 && st.st_size < 16 * 1024 * 1024;
+    out.assign(ok ? size_t(st.st_size) : 0, 0);
+    size_t used = 0;
+    while (ok && used < out.size()) {
+        ssize_t got = read(fd, out.data() + used, out.size() - used);
+        if (got < 0 && errno == EINTR) continue;
+        if (got <= 0) ok = false; else used += size_t(got);
+    }
+    close(fd);
+    return ok;
+}
+bool write_whole(const std::string &path, const char *data, size_t bytes) {
+    const std::string part = path + ".part";
+    FILE *f = std::fopen(part.c_str(), "wb");
+    if (!f) return false;
+    bool ok = std::fwrite(data, 1, bytes, f) == bytes;
+    if (std::fclose(f)) ok = false;
+    if (!ok || std::rename(part.c_str(), path.c_str())) { std::remove(part.c_str()); return false; }
+    return true;
+}
+using voice_ptr = std::unique_ptr<mtmd_bitmap, decltype(&mtmd_bitmap_free)>;
+voice_ptr voice_from(const mtmd_context *ctx, const unsigned char *data, size_t bytes) {
+    return voice_ptr(mtmd_helper_bitmap_init_from_buf(ctx, data, bytes, false, mtmd_helper_init_opt_default()).bitmap,
+                     mtmd_bitmap_free);
+}
 std::vector<std::string> chunks(const char *input) {
     std::string text(input);
     if (text.empty() || text.size() > 2048) throw std::runtime_error("neural speech text must contain 1..2048 UTF-8 bytes");
@@ -160,15 +195,32 @@ extern "C" int muse_neural_tts_synthesize(const muse_neural_tts_config *cfg, con
         result.load_ms = elapsed(started);
         const auto synthesis = Clock::now();
         Output output(path);
+        const bool want_voice = cfg->voice_ref && *cfg->voice_ref;
+        voice_ptr voice(nullptr, mtmd_bitmap_free);
+        bool voice_unsupported = false;
+        if (want_voice) {
+            std::vector<unsigned char> saved;
+            if (read_whole(cfg->voice_ref, saved)) voice = voice_from(r.mtmd, saved.data(), saved.size());
+            std::fprintf(stderr, "muse_tts voice_ref=%s loaded=%d\n", cfg->voice_ref, voice ? 1 : 0);
+        }
         for (const auto &part : parts) {
-            llama_memory_clear(llama_get_memory(r.context), true);
-            mtmd_helper::gen_audio gen(r.context, r.mtmd);
             mtmd_helper_gen_audio_inp input{};
             input.prompt = part.c_str(); input.prompt_len = part.size();
             input.lang = cfg->language && *cfg->language ? cfg->language : "en";
             input.top_k = 50; input.top_p = 0.95f; input.seed = 1234;
             input.out_type = MTMD_HELPER_GEN_AUDIO_OUTTYPE_WAV;
-            if (gen.set_input(&input)) throw std::runtime_error("neural speech input/language rejected");
+            input.speaker_ref = voice.get();
+            std::unique_ptr<mtmd_helper::gen_audio> generator;
+            for (;;) {
+                llama_memory_clear(llama_get_memory(r.context), true);
+                generator = std::make_unique<mtmd_helper::gen_audio>(r.context, r.mtmd);
+                if (!generator->set_input(&input)) break;
+                if (!input.speaker_ref) throw std::runtime_error("neural speech input/language rejected");
+                // This projector cannot encode a reference voice: continue unconditioned.
+                std::fprintf(stderr, "muse_tts voice_ref rejected by projector; unconditioned voice\n");
+                voice.reset(); voice_unsupported = true; input.speaker_ref = nullptr;
+            }
+            auto &gen = *generator;
             for (;;) {
                 int left = gen.step_prompt(64);
                 if (left < 0) throw std::runtime_error("neural speech prompt evaluation failed");
@@ -209,6 +261,16 @@ extern "C" int muse_neural_tts_synthesize(const muse_neural_tts_config *cfg, con
             }
             append_wav(output, wav, bytes, rate, samples);
             result.samples += samples; result.frames += frames; ++result.chunks;
+            if (want_voice && !voice && !voice_unsupported && samples >= int64_t(rate) * 3 / 2) {
+                // Keep this voice for the rest of the reply and for later replies.
+                if (write_whole(cfg->voice_ref, wav, bytes))
+                    voice = voice_from(r.mtmd, reinterpret_cast<const unsigned char *>(wav), bytes);
+                std::fprintf(stderr, "muse_tts voice_ref saved=%d\n", voice ? 1 : 0);
+            }
+            if (cfg->on_chunk) {
+                const std::string piece = std::string(path) + ".chunk" + std::to_string(result.chunks) + ".wav";
+                if (write_whole(piece, wav, bytes)) cfg->on_chunk(cfg->chunk_context, piece.c_str(), result.chunks);
+            }
         }
         if (muse_mtmd_generation_buffers(r.mtmd, &result))
             std::snprintf(result.projector_backends, sizeof(result.projector_backends), "unreported");

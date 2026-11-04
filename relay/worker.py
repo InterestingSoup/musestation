@@ -8,6 +8,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import re
 import signal
 import stat
 import threading
@@ -41,6 +42,37 @@ def collect_diagnostics(store, id, paths):
         store.save_diagnostics(id, files)
 
 
+STEP = re.compile(rb"\[(\d+)/(\d+)\]")
+
+
+def build_progress(job_dir):
+    """Human progress from the bounded compiler/package logs (no parsing of output)."""
+    if (job_dir / "package.log").exists():
+        return "Packaging and verifying your app"
+    try:
+        with open(job_dir / "compiler.log", "rb") as log:
+            log.seek(max(0, os.fstat(log.fileno()).st_size - 4096))
+            steps = STEP.findall(log.read())
+    except OSError:
+        return None
+    if steps:
+        done, total = steps[-1]
+        return f"Compiling {int(done)} of {int(total)} files"
+    return "Preparing the PS5 compiler"
+
+
+def watch_progress(store, id, job_dir, stop):
+    last = None
+    while not stop.wait(3):
+        text = build_progress(job_dir)
+        if text and text != last:
+            try:
+                store.set_build_detail(id, text)
+                last = text
+            except (RelayError, OSError):
+                pass
+
+
 def run_one(store, builder):
     job = store.claim_job()
     if job is None:
@@ -48,13 +80,20 @@ def run_one(store, builder):
     id = job["id"]
     job_dir = store.path / "work" / id
     output_dir = job_dir / "out"
+    stop = threading.Event()
+    watcher = threading.Thread(target=watch_progress, args=(store, id, job_dir, stop), daemon=True)
+    watcher.start()
     try:
         with SafeDir(output_dir):
             pass
         result = builder.build(job_dir, job["source_manifest"], job["identity"], output_dir)
+        stop.set()
+        watcher.join()
         collect_diagnostics(store, id, [result[k] for k in ("compiler_log", "package_log") if result.get(k)])
         store.finish_job(id, result)
     except Exception as error:
+        stop.set()
+        watcher.join()
         # Compile diagnostics are deliberately exported to Muse for a new request.
         # Keep them bounded and avoid an arbitrary exception traceback/body.
         detail = getattr(error, "message", str(error)) or type(error).__name__
@@ -67,7 +106,9 @@ def run_one(store, builder):
         except (RelayError, OSError):
             detail = "Could not preserve compiler diagnostics. " + detail
             detail = detail.encode("utf-8")[:1000].decode("utf-8", errors="ignore")
-        store.fail_job(id, detail)
+        # Compile/build errors are Muse's to fix (up to the attempt limit); relay
+        # integrity rejections (identity/hash mismatch) are final.
+        store.fail_job(id, detail, retryable=not isinstance(error, RelayError))
     else:
         # Cleanup cannot reverse a durably completed/verified result. The served
         # copy is already committed; retain the redundant file if unlink fails.

@@ -13,7 +13,9 @@ for arg in "$@"; do
   previous=$arg
 done
 [[ -n $output ]] || { echo 'GPU link output missing' >&2; exit 2; }
-"$sdk/bin/prospero-lld" "$@"
+# --undefined-version: version script may list symbols that come from dynamic
+# imports (libSceNet getaddrinfo/freeaddrinfo), not defined in this link unit.
+"$sdk/bin/prospero-lld" --undefined-version "$@"
 weak="${output%.elf}.weak-unresolved.txt"
 response="${output%.elf}.weak-null.rsp"
 llvm-readelf-18 --dyn-syms "$output" |
@@ -25,5 +27,5 @@ if grep -vE "$allowed" "$weak" | grep -q .; then
   exit 1
 fi
 sed 's/.*/--defsym=&=0/' "$weak" > "$response"
-"$sdk/bin/prospero-lld" "$@" "@$response"
+"$sdk/bin/prospero-lld" --undefined-version "$@" "@$response"
 echo "Bound $(wc -l < "$weak") absent optional Mesa weak entries to NULL."

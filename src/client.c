@@ -16,7 +16,9 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 static int fail(struct muse_client *c,const char *s){snprintf(c->error,sizeof(c->error),"%s",s);return -1;}
 static int network_allowed(struct muse_client *c){if(muse_config_local(&c->config))return fail(c,"Local mode disables HTTP and external services");if(!strcmp(c->config.hybrid_provider,"codex"))return fail(c,"Codex device connection is not paired or implemented; choose Local or Muse");return 0;}
@@ -29,6 +31,53 @@ static int package_identity(const char *title,const char *cid){
     return 1;
 }
 static int64_t now_ms(void){struct timespec t;if(clock_gettime(CLOCK_MONOTONIC,&t))return 0;return (int64_t)t.tv_sec*1000+t.tv_nsec/1000000;}
+#ifdef __PROSPERO__
+/* A native title's sandbox refuses BSD socket(); sceNetSocket (the same path
+ * ProsperoStore uses before elevation) is allowed. Timeouts come from the
+ * socket's send/receive/connect options instead of poll(). */
+int sceNetSocket(const char *name,int domain,int type,int protocol);
+int sceNetConnect(int s,const void *address,unsigned length);
+int sceNetSend(int s,const void *data,size_t length,int flags);
+int sceNetRecv(int s,void *data,size_t length,int flags);
+int sceNetSetsockopt(int s,int level,int option,const void *value,unsigned length);
+int sceNetShutdown(int s,int how);
+int sceNetSocketClose(int s);
+enum{NET_SOCKET_LEVEL=0xffff,NET_SO_SNDTIMEO=0x1105,NET_SO_RCVTIMEO=0x1106,NET_SO_CONNECTTIMEO=0x1109};
+static _Thread_local int net_last_error;
+static int net_timeout(int fd,int option,int64_t deadline){
+    int64_t remain=deadline-now_ms();if(remain<=0){errno=ETIMEDOUT;return -1;}
+    int us=remain>2000000?2000000000:(int)(remain*1000);
+    return sceNetSetsockopt(fd,NET_SOCKET_LEVEL,option,&us,sizeof(us))<0?-1:0;
+}
+static void net_close(int fd){(void)sceNetSocketClose(fd);}
+static void net_shutdown_write(int fd){(void)sceNetShutdown(fd,1);}
+static ssize_t read_socket(int fd,void *out,size_t n,int64_t deadline){
+    if(net_timeout(fd,NET_SO_RCVTIMEO,deadline))return -1;
+    int got=sceNetRecv(fd,out,n,0);if(got<0){net_last_error=got;return -1;}return got;
+}
+static int send_all(int fd,const void *data,size_t n,int64_t deadline){
+    const unsigned char *p=data;
+    while(n){if(net_timeout(fd,NET_SO_SNDTIMEO,deadline))return -1;size_t want=n>65536?65536:n;int got=sceNetSend(fd,p,want,0);if(got<=0){net_last_error=got;return -1;}p+=got;n-=(size_t)got;}
+    return 0;
+}
+static int connect_host(const char *host,const char *port,int64_t deadline){
+    struct addrinfo hints,*list=NULL;memset(&hints,0,sizeof(hints));hints.ai_family=AF_UNSPEC;hints.ai_socktype=SOCK_STREAM;hints.ai_flags=AI_NUMERICHOST|AI_NUMERICSERV;
+    net_last_error=0;
+    if(getaddrinfo(!strcmp(host,"localhost")?"127.0.0.1":host,port,&hints,&list)){net_last_error=-1;return -1;}
+    int fd=-1;
+    for(struct addrinfo *a=list;a;a=a->ai_next){
+        fd=sceNetSocket("muse_client",a->ai_family,SOCK_STREAM,IPPROTO_TCP);if(fd<0){net_last_error=fd;fd=-1;continue;}
+        if(net_timeout(fd,NET_SO_CONNECTTIMEO,deadline)||net_timeout(fd,NET_SO_SNDTIMEO,deadline)||net_timeout(fd,NET_SO_RCVTIMEO,deadline)){net_last_error=-2;net_close(fd);fd=-1;continue;}
+        int rc=sceNetConnect(fd,a->ai_addr,a->ai_addrlen);
+        if(rc>=0)break;
+        net_last_error=rc;net_close(fd);fd=-1;
+    }
+    freeaddrinfo(list);return fd;
+}
+#else
+static _Thread_local int net_last_error;
+static void net_close(int fd){close(fd);}
+static void net_shutdown_write(int fd){shutdown(fd,SHUT_WR);}
 static int wait_fd(int fd,short events,int64_t deadline){
     for(;;){int64_t remain=deadline-now_ms();if(remain<=0){errno=ETIMEDOUT;return -1;}struct pollfd p={fd,events,0};int rc=poll(&p,1,(int)remain);if(rc>0)return 0;if(rc==0){errno=ETIMEDOUT;return -1;}if(errno!=EINTR)return -1;}
 }
@@ -40,18 +89,20 @@ static int send_all(int fd,const void *data,size_t n,int64_t deadline){
 }
 static int connect_host(const char *host,const char *port,int64_t deadline){
     struct addrinfo hints,*list=NULL;memset(&hints,0,sizeof(hints));hints.ai_family=AF_UNSPEC;hints.ai_socktype=SOCK_STREAM;hints.ai_flags=AI_NUMERICHOST|AI_NUMERICSERV;
+    net_last_error=0;
     if(getaddrinfo(!strcmp(host,"localhost")?"127.0.0.1":host,port,&hints,&list))return -1;
     int fd=-1;
     for(struct addrinfo *a=list;a;a=a->ai_next){
-        fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);if(fd<0)continue;
+        fd=socket(a->ai_family,a->ai_socktype,a->ai_protocol);if(fd<0){net_last_error=errno;continue;}
         if(fcntl(fd,F_SETFL,O_NONBLOCK)<0){close(fd);fd=-1;continue;}
         int rc=connect(fd,a->ai_addr,a->ai_addrlen);
         if(!rc)break;
         if(errno==EINPROGRESS&&!wait_fd(fd,POLLOUT,deadline)){int error=0;socklen_t size=sizeof(error);if(!getsockopt(fd,SOL_SOCKET,SO_ERROR,&error,&size)&&!error)break;}
-        close(fd);fd=-1;
+        net_last_error=errno;close(fd);fd=-1;
     }
     freeaddrinfo(list);return fd;
 }
+#endif
 static int origin(const char *url,char host[128],char port[6],char authority[160]){
     if(strncmp(url,"http://",7))return -1;
     const char *p=url+7,*a=p;size_t n;
@@ -82,7 +133,7 @@ static int http_request(struct muse_client *c,const char *url,const char *method
     if(!path||*path!='/'||strpbrk(path,"\r\n ")||!type||strpbrk(type,"\r\n")||length>MUSE_MAX_ARTIFACT||max>MUSE_MAX_ARTIFACT)return fail(c,"Invalid HTTP request");
     char auth[96];if(relay_header(c,url,relay,auth))return -1;
     int timeout=c->config.timeout_ms;if(timeout<1000||timeout>60000)timeout=10000;
-    int64_t deadline=now_ms()+timeout;int fd=connect_host(host,port,deadline);if(fd<0)return fail(c,"Connection failed or timed out");
+    int64_t deadline=now_ms()+timeout;int fd=connect_host(host,port,deadline);if(fd<0){snprintf(c->error,sizeof(c->error),"Connection failed or timed out (0x%08x)",(unsigned)net_last_error);return -1;}
     char header[2048];int hlen=snprintf(header,sizeof(header),"%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: Muse-PS5/1\r\n%sConnection: close\r\nAccept: */*\r\nContent-Type: %s\r\nContent-Length: %zu\r\n\r\n",method,path,authority,auth,type,length);
     unsigned char *out=NULL;const char *error="HTTP send failed or timed out";
     if(hlen<0||hlen>=(int)sizeof(header)||send_all(fd,header,(size_t)hlen,deadline)||(length&&send_all(fd,body,length,deadline)))goto bad;
@@ -114,8 +165,8 @@ static int http_request(struct muse_client *c,const char *url,const char *method
     }else{
         for(;;){unsigned char excess;ssize_t got=read_socket(fd,used<max?out+used:&excess,used<max?max-used:1,deadline);if(got<0||(got>0&&used==max))goto bad;if(!got)break;used+=(size_t)got;}
     }
-    close(fd);out[used]=0;*response=out;*response_length=used;return 0;
-bad:close(fd);free(out);return fail(c,error);
+    net_close(fd);out[used]=0;*response=out;*response_length=used;return 0;
+bad:net_close(fd);free(out);return fail(c,error);
 }
 int muse_client_http(struct muse_client *c,const char *url,const char *method,const char *path,const char *type,const void *body,size_t length,size_t max,unsigned char **response,size_t *response_length){
     return http_request(c,url,method,path,type,body,length,max,response,response_length,0,1);
@@ -336,6 +387,15 @@ int muse_client_status(struct muse_client *c,const char *job,struct muse_build_s
         if(field(&j,"sha256",s.sha256,sizeof(s.sha256))||strlen(s.sha256)!=64||field(&j,"kind",s.kind,sizeof(s.kind))||(strcmp(s.kind,"elf")&&strcmp(s.kind,"pkg"))||muse_json_u64(&j,muse_json_get(&j,0,"size"),&s.size)||s.size<64||s.size>(!strcmp(s.kind,"pkg")?MUSE_MAX_PACKAGE:MUSE_MAX_ARTIFACT))bad=1;
         if(!strcmp(s.kind,"pkg")&&(s.size<0x11000||field(&j,"title_id",s.title_id,sizeof(s.title_id))||field(&j,"content_id",s.content_id,sizeof(s.content_id))||!package_identity(s.title_id,s.content_id)))bad=1;
         for(const char *p=s.sha256;*p;p++)if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='f')))bad=1;
+        int folder=muse_json_get(&j,0,"folder");
+        if(!bad&&folder>=0&&!strcmp(s.kind,"pkg")){
+            if(muse_json_string(&j,muse_json_get(&j,folder,"sha256"),s.folder_sha256,sizeof(s.folder_sha256))||strlen(s.folder_sha256)!=64||
+               muse_json_u64(&j,muse_json_get(&j,folder,"size"),&s.folder_size)||!s.folder_size||s.folder_size>(uint64_t)2*MUSE_MAX_ARTIFACT||
+               muse_json_u64(&j,muse_json_get(&j,folder,"files"),&s.folder_files)||!s.folder_files||s.folder_files>4096)bad=1;
+            for(const char *p=s.folder_sha256;*p;p++)if(!((*p>='0'&&*p<='9')||(*p>='a'&&*p<='f')))bad=1;
+            int name=muse_json_get(&j,folder,"name");
+            if(name<0||muse_json_string(&j,name,s.folder_name,sizeof(s.folder_name)))snprintf(s.folder_name,sizeof(s.folder_name),"%s",s.title_id);
+        }
     }
     free(data);if(bad)return fail(c,"Invalid build manifest: require bounded ELF or identified FIH package and lowercase SHA256");*status=s;return 0;
 }
@@ -389,8 +449,8 @@ static int package_download(struct muse_client *c,const char *path,int out,uint6
         ssize_t got=read_socket(fd,buffer,want,deadline);if(got<=0)goto bad;size_t at=0;
         while(at<(size_t)got){ssize_t written=write(out,buffer+at,(size_t)got-at);if(written<0&&errno==EINTR)continue;if(written<=0)goto bad;at+=(size_t)written;}used+=(size_t)got;
     }
-    close(fd);return 0;
-bad:close(fd);return fail(c,error);
+    net_close(fd);return 0;
+bad:net_close(fd);return fail(c,error);
 }
 int muse_client_verify_package(struct muse_client *c,const char *path,const struct muse_build_status *s){
     if(strcmp(s->kind,"pkg")||strcmp(s->state,"done")||!package_identity(s->title_id,s->content_id)||s->size<0x11000||s->size>MUSE_MAX_PACKAGE||strlen(s->sha256)!=64)return fail(c,"Invalid package manifest");
@@ -431,7 +491,7 @@ int muse_client_dispatch(struct muse_client *c,const char *path){
     unsigned char *data;size_t n;if(read_file(c,path,MUSE_MAX_ARTIFACT,&data,&n))return -1;if(!elf_valid(data,n)){free(data);return fail(c,"Refusing to dispatch invalid x86-64 ELF");}
     char port[6];snprintf(port,sizeof(port),"%u",c->config.loader_port);int timeout=c->config.timeout_ms;if(timeout<1000||timeout>60000)timeout=10000;int64_t deadline=now_ms()+timeout;
     int fd=connect_host(c->config.console_ip,port,deadline);if(fd<0){free(data);return fail(c,"ELF loader connection failed; reapply jailbreak and verify loader");}
-    int bad=send_all(fd,data,n,deadline);shutdown(fd,SHUT_WR);close(fd);free(data);if(bad)return fail(c,"ELF transfer failed or timed out; runtime state unknown");c->error[0]=0;return 0;
+    int bad=send_all(fd,data,n,deadline);net_shutdown_write(fd);net_close(fd);free(data);if(bad)return fail(c,"ELF transfer failed or timed out; runtime state unknown");c->error[0]=0;return 0;
 }
 int muse_client_logs(struct muse_client *c,const char *path){
     unsigned char *data,*reply;size_t len,count;if(read_file(c,path,8u*1024*1024,&data,&len))return -1;
@@ -468,4 +528,101 @@ int muse_client_transcribe(struct muse_client *c,const char *wav,char transcript
     unsigned char *body=malloc(h+size+t);if(!body){free(audio);return fail(c,"Speech allocation failed");}memcpy(body,head,h);memcpy(body+h,audio,size);memcpy(body+h+size,tail,t);free(audio);
     unsigned char *data;size_t len;int rc=http_request(c,c->config.speech_url,"POST","/inference","multipart/form-data; boundary=muse_ps5_audio_96cd7ee033644217",body,h+size+t,32768,&data,&len,0,0);free(body);if(rc)return -1;
     struct muse_json j;int bad=muse_json_parse(&j,data,len)||field(&j,"text",transcript,4097)||!*transcript;free(data);if(bad)return fail(c,"Local speech returned missing/invalid text");return 0;
+}
+
+/* ---- ShadowMountPlus folder install ---------------------------------------- */
+static int folder_path_ok(const char *p){
+    if(!*p||*p=='/'||strlen(p)>511)return 0;
+    const char *seg=p;
+    for(const char *c=p;;c++){
+        if(*c=='/'||!*c){size_t n=(size_t)(c-seg);if(!n||(n==1&&seg[0]=='.')||(n==2&&seg[0]=='.'&&seg[1]=='.'))return 0;if(!*c)break;seg=c+1;continue;}
+        if(!((*c>='a'&&*c<='z')||(*c>='A'&&*c<='Z')||(*c>='0'&&*c<='9')||*c=='_'||*c=='-'||*c=='.'))return 0;
+    }
+    return 1;
+}
+static int mkdirs(const char *path){
+    char buf[1024];if(snprintf(buf,sizeof buf,"%s",path)>=(int)sizeof buf)return -1;
+    for(char *p=buf+1;*p;p++)if(*p=='/'){*p=0;if(mkdir(buf,0777)&&errno!=EEXIST)return -1;*p='/';}
+    return mkdir(buf,0777)&&errno!=EEXIST?-1:0;
+}
+static int remove_tree(const char *path,int depth){
+    struct stat st;if(lstat(path,&st))return errno==ENOENT?0:-1;
+    if(!S_ISDIR(st.st_mode))return unlink(path);
+    if(depth>16)return -1;
+    DIR *d=opendir(path);if(!d)return -1;struct dirent *e;int bad=0;
+    while((e=readdir(d))){if(!strcmp(e->d_name,".")||!strcmp(e->d_name,".."))continue;char child[1024];
+        if(snprintf(child,sizeof child,"%s/%s",path,e->d_name)>=(int)sizeof child||remove_tree(child,depth+1))bad=1;}
+    closedir(d);return bad||rmdir(path)?-1:0;
+}
+static int write_new(const char *path,const unsigned char *data,size_t n){
+    int fd=open(path,O_WRONLY|O_CREAT|O_TRUNC,0666);if(fd<0)return -1;size_t used=0;
+    while(used<n){ssize_t got=write(fd,data+used,n-used);if(got<0&&errno==EINTR)continue;if(got<=0){close(fd);return -1;}used+=(size_t)got;}
+    return close(fd);
+}
+static int muse_client_install_folder_inner(struct muse_client *c,const char *job,const struct muse_build_status *m,const char *root,
+                               muse_install_progress progress,void *context);
+int muse_client_install_folder(struct muse_client *c,const char *job,const struct muse_build_status *m,const char *root,
+                               muse_install_progress progress,void *context){
+    if(!id_ok(job)||!m||!m->folder_sha256[0]||!root||!*root)return fail(c,"This build has no folder app to install");
+    if(!package_identity(m->title_id,m->content_id))return fail(c,"Folder app identity is invalid");
+    /* Each request has one overall deadline; large files over Tailscale need more than 10 s. */
+    int saved_timeout=c->config.timeout_ms;if(c->config.timeout_ms<60000)c->config.timeout_ms=60000;
+    int rc_all=muse_client_install_folder_inner(c,job,m,root,progress,context);
+    c->config.timeout_ms=saved_timeout;return rc_all;
+}
+static int muse_client_install_folder_inner(struct muse_client *c,const char *job,const struct muse_build_status *m,const char *root,
+                               muse_install_progress progress,void *context){
+    char path[200];snprintf(path,sizeof path,"/build/%s/folder",job);unsigned char *list=NULL;size_t list_len=0;
+    if(progress)progress(context,0,m->folder_size,"Fetching the file list");
+    if(http_request(c,c->config.server_url,"GET",path,"text/plain",NULL,0,1024*1024,&list,&list_len,0,1))return -1;
+    char hex[65];muse_sha256_hex(list,list_len,hex);
+    if(strcmp(hex,m->folder_sha256)){free(list);return fail(c,"Folder file list does not match the verified build manifest");}
+    char dest[512],stage[600],old[600];
+    snprintf(dest,sizeof dest,"%s/%s",root,m->title_id);snprintf(stage,sizeof stage,"%s.muse-part",dest);snprintf(old,sizeof old,"%s.muse-old",dest);
+    if(mkdirs(root)||remove_tree(stage,0)||mkdir(stage,0777)){free(list);return fail(c,"Cannot prepare the homebrew folder on this console");}
+    uint64_t done=0,files=0;int rc=0;char *cursor=(char *)list,*end=(char *)list+list_len;
+    while(!rc&&cursor<end){
+        char *nl=memchr(cursor,'\n',(size_t)(end-cursor));if(!nl){rc=fail(c,"Folder file list is truncated");break;}*nl=0;
+        char sha[65];unsigned long long nbytes=0;int consumed=0;
+        if(sscanf(cursor,"%64[0-9a-f] %llu %n",sha,&nbytes,&consumed)!=2||strlen(sha)!=64||!folder_path_ok(cursor+consumed)||
+           nbytes>MUSE_MAX_ARTIFACT||done+nbytes>m->folder_size){rc=fail(c,"Folder file list has an invalid entry");break;}
+        const char *rel=cursor+consumed;cursor=nl+1;
+        if(progress)progress(context,done,m->folder_size,rel);
+        char url[700],target[1200];snprintf(url,sizeof url,"/build/%s/folder/%s",job,rel);
+        if(snprintf(target,sizeof target,"%s/%s",stage,rel)>=(int)sizeof target){rc=fail(c,"Folder path is too long");break;}
+        unsigned char *data=NULL;size_t got=0;
+        if(http_request(c,c->config.server_url,"GET",url,"application/octet-stream",NULL,0,(size_t)nbytes,&data,&got,0,1)){rc=-1;break;}
+        muse_sha256_hex(data,got,hex);
+        if(got!=nbytes||strcmp(hex,sha)){free(data);snprintf(c->error,sizeof c->error,"Downloaded file failed its hash check: %.200s",rel);rc=-1;break;}
+        char *slash=strrchr(target,'/');*slash=0;int dir_bad=mkdirs(target);*slash='/';
+        if(dir_bad||write_new(target,data,got)){free(data);snprintf(c->error,sizeof c->error,"Cannot write %.200s on this console",rel);rc=-1;break;}
+        free(data);done+=nbytes;files++;
+    }
+    free(list);
+    if(!rc&&(files!=m->folder_files||done!=m->folder_size))rc=fail(c,"Folder app download is incomplete");
+    if(rc){(void)remove_tree(stage,0);return -1;}
+    if(progress)progress(context,done,m->folder_size,"Swapping the new version into place");
+    struct stat st;int existed=!lstat(dest,&st);
+    if((existed&&(remove_tree(old,0)||rename(dest,old)))||rename(stage,dest)){
+        if(existed&&lstat(dest,&st))(void)rename(old,dest);
+        (void)remove_tree(stage,0);return fail(c,"Cannot move the app into the homebrew folder");
+    }
+    if(existed)(void)remove_tree(old,0);
+    /* ShadowMountPlus registers the folder; it waits for a stable source by itself. */
+    if(progress)progress(context,done,m->folder_size,"Asking ShadowMount+ to install it");
+    unsigned char *reply=NULL;size_t reply_len=0;
+    if(http_request(c,c->config.shadowmount_url,"POST","/api/v1/scan","application/json","{\"reset_attempts\":true}",23,65536,&reply,&reply_len,0,0))
+        return fail(c,"The app was copied, but ShadowMount+ did not accept the scan request");
+    free(reply);
+    char body[64];int body_len=snprintf(body,sizeof body,"{\"title_id\":\"%s\"}",m->title_id);
+    for(int attempt=0;attempt<60;attempt++){
+        struct timespec pause={2,0};nanosleep(&pause,NULL);
+        if(progress)progress(context,done,m->folder_size,"Waiting for ShadowMount+ to register the app");
+        reply=NULL;reply_len=0;
+        if(!http_request(c,c->config.shadowmount_url,"POST","/api/v1/games/info","application/json",body,(size_t)body_len,262144,&reply,&reply_len,0,0)&&reply){
+            int installed=strstr((char *)reply,"\"installed\":true")!=NULL;free(reply);
+            if(installed){c->error[0]=0;return 0;}
+        } else free(reply);
+    }
+    return fail(c,"The app was copied, but ShadowMount+ has not registered it yet; check its library page");
 }

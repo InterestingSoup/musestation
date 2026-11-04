@@ -17,6 +17,9 @@ struct muse_build_status {
     char state[32], detail[1024], sha256[65], kind[16];
     char title_id[10], content_id[48];
     uint64_t size;
+    /* Optional ShadowMountPlus folder app (preferred over the package when present). */
+    char folder_sha256[65], folder_name[128];
+    uint64_t folder_size, folder_files;
 };
 void muse_client_init(struct muse_client *c, const struct muse_config *config);
 /* Blocking bounded calls: run on a worker, never rendering/input thread.
@@ -49,6 +52,13 @@ int muse_client_verify_package(struct muse_client *c, const char *path, const st
 /* Validate ELF again, send to configured console_ip:loader_port; no runtime acknowledgement exists. */
 int muse_client_dispatch(struct muse_client *c, const char *elf_path);
 int muse_client_logs(struct muse_client *c, const char *jsonl_path);
+/* Folder install: download every file of the build's folder app (hash-checked against
+ * the listing bound to the manifest), stage it under <root>/<TITLE>.muse-part, swap it
+ * into <root>/<TITLE>, then ask ShadowMountPlus to scan and wait until it reports the
+ * title installed. progress(context, done_bytes, total_bytes, stage) may be NULL. */
+typedef void (*muse_install_progress)(void *context, uint64_t done, uint64_t total, const char *stage);
+int muse_client_install_folder(struct muse_client *c, const char *job_id, const struct muse_build_status *manifest,
+                               const char *root, muse_install_progress progress, void *context);
 /* OpenAI-compatible local PS5LM server: responses are bounded, no UI/provider switching. */
 int muse_client_draft(struct muse_client *c, const char *transcript, char draft[4097]);
 int muse_client_classify(struct muse_client *c, const char *utterance, char intent[16]);

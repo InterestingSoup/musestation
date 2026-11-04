@@ -88,6 +88,12 @@ int muse_inference_classify(muse_inference *, const char *utterance, const char 
 int muse_inference_transcribe(muse_inference *, const int16_t *pcm, size_t frames, int sample_rate,
                               char *text, size_t text_size, char *error, size_t error_size);
 /* Writes a RIFF/WAVE PCM16 mono file, atomically; caller plays it through AudioOut. */
+/* Neural speech options: a persistent speaker reference WAV (one voice for every
+ * reply; created from the first reply when absent) and an optional callback that
+ * receives each finished sentence as a standalone WAV for early playback. The
+ * callback runs on the inference thread. Pass NULL to disable either. */
+void muse_inference_set_speech_options(muse_inference *, const char *voice_ref_path,
+    void (*on_chunk)(void *context, const char *wav_path, int index), void *chunk_context);
 int muse_inference_speak(muse_inference *, const char *text, const char *wav_path,
                         char *error, size_t error_size);
 const char *muse_inference_backend(void); /* honest runtime capability string */

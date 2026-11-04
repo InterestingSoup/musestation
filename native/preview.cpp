@@ -137,6 +137,11 @@ int main(int argc, char **argv) {
   v=base(); v.local=false; v.provider="Muse"; v.screen=muse::Screen::setup;
   v.field="AudioIn module path (optional for typing)"; v.step_count=5; v.field_index=4;
   add("setup-hybrid-optional-mic",v);
+  v=base(); v.local=false; v.provider="Muse"; v.screen=muse::Screen::setup;
+  v.field="Relay address (private LAN HTTP only)"; v.step_count=7; v.field_index=2;
+  v.edit="http://192.168.5.54:8860"; v.qr_url="http://192.168.5.54:8860/setup";
+  v.caps=true; v.key=12; v.error="Token filled in from the relay. Press R1 through the optional fields.";
+  add("setup-qr-caps",v);
   v=base(); v.screen=muse::Screen::request; v.edit="make a paddle game with a score";
   v.key=17; add("type-request",v);
   v=base(); v.screen=muse::Screen::request; v.field="Refine your saved app";

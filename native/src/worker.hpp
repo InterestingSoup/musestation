@@ -11,6 +11,7 @@ extern "C" {
 #include <atomic>
 #include <pthread.h>
 #include <string>
+#include <utility>
 #include <vector>
 namespace muse {
 enum class Task {
@@ -63,6 +64,7 @@ struct Result {
   muse_install_status install{};
   muse_local_job local_job{};
   std::vector<muse_local_job> local_jobs;
+  int speech_chunks = 0;  // sentences already handed over for early playback
   bool coding_model_unavailable = false;
   bool needs_init = false, configuration_applied = false, plan_retryable = false;
 };
@@ -80,12 +82,26 @@ public:
   std::atomic<uint64_t> phone_generation{0};
   static int phone_submit(void *context, const char *path);
   ModelTransfer model_transfer;
+  // Neural speech sentences ready for early playback (filled on the worker
+  // thread by the engine callback, drained by the UI thread).
+  static void speech_chunk_ready(void *context, const char *path, int index);
+  bool take_speech_chunk(uint64_t &generation, std::string &path);
+  std::atomic<uint64_t> speech_generation{0};
+  std::atomic<int> speech_chunks_streamed{0};
+  // Folder install progress for the UI (written by the worker thread).
+  std::atomic<uint64_t> install_done{0}, install_total{0};
+  std::string install_stage();
   std::atomic<bool> recording{false};
   std::atomic<float> meter{0};
 
 private:
   pthread_t thread{};
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_t speech_mutex = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_t stage_mutex = PTHREAD_MUTEX_INITIALIZER;
+  std::string stage_text;
+  static void folder_progress(void *context, uint64_t done, uint64_t total, const char *stage);
+  std::vector<std::pair<uint64_t, std::string>> speech_ready;
   pthread_cond_t wake = PTHREAD_COND_INITIALIZER;
   bool pending = false, running = false, ready = false;
   std::string context_id, context_revision, context_text;

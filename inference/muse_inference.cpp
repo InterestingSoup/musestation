@@ -36,7 +36,9 @@ struct muse_inference {
     int threads = 2;
     int speech_rate = 0;
     std::string language;
-    std::string llm_path, whisper_path, neural_backbone, neural_projector;
+    std::string llm_path, whisper_path, neural_backbone, neural_projector, voice_ref;
+    void (*on_speech_chunk)(void *, const char *, int) = nullptr;
+    void *speech_chunk_context = nullptr;
     std::string device = "CPU", qwen_status = "unloaded", whisper_status = "unloaded", tts_status = "eSpeak NG", fallback;
     enum muse_backend_policy policy = MUSE_BACKEND_AUTO;
     ggml_backend_dev_t gpu = nullptr;
@@ -679,6 +681,13 @@ extern "C" int muse_inference_transcribe(muse_inference *engine, const int16_t *
       catch (...) { return error(err, cap, "transcription exception"); }
 }
 
+extern "C" void muse_inference_set_speech_options(muse_inference *engine, const char *voice_ref_path,
+    void (*on_chunk)(void *, const char *, int), void *chunk_context) {
+    if (!engine) return;
+    engine->voice_ref = voice_ref_path ? voice_ref_path : "";
+    engine->on_speech_chunk = on_chunk;
+    engine->speech_chunk_context = chunk_context;
+}
 extern "C" int muse_inference_speak(muse_inference *engine, const char *text, const char *path, char *err, size_t cap) {
     if (!engine || !text || !*text || !path || !*path || std::strlen(text) > 4096) return error(err, cap, "invalid speech request");
     operation_guard operation(engine);
@@ -692,12 +701,16 @@ extern "C" int muse_inference_speak(muse_inference *engine, const char *text, co
             muse_neural_tts_config cfg{engine->neural_backbone.c_str(),engine->neural_projector.c_str(),
                 engine->language.c_str(),engine->threads,engine->gpu ? 1 : 0,360};
             cfg.require_gpu = engine->policy == MUSE_BACKEND_VULKAN_REQUIRED;
+            cfg.voice_ref = engine->voice_ref.empty() ? nullptr : engine->voice_ref.c_str();
+            cfg.on_chunk = engine->on_speech_chunk;
+            cfg.chunk_context = engine->speech_chunk_context;
             muse_neural_tts_stats stats{};
             char neural_error[512]{};
             int rc = muse_neural_tts_synthesize(&cfg,text,path,&stats,neural_error,sizeof(neural_error));
             if (rc != 0 && cfg.use_gpu && engine->policy != MUSE_BACKEND_VULKAN_REQUIRED) {
                 engine->fallback = std::string("Neural Vulkan speech failed: ") + neural_error;
                 cfg.use_gpu = 0;
+                cfg.on_chunk = nullptr;  // the failed attempt may already have played sentences
                 rc = muse_neural_tts_synthesize(&cfg,text,path,&stats,neural_error,sizeof(neural_error));
             }
             if (rc == 0) {
