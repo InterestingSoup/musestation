@@ -2,6 +2,13 @@
 #include "view.hpp"
 #include <cmath>
 #include <cstdio>
+extern "C" {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-function-declaration"
+#pragma clang diagnostic ignored "-Wunused-function"
+#include "third_party/qr/qrcodegen.h"
+#pragma clang diagnostic pop
+}
 using namespace hui;
 namespace muse {
 namespace {
@@ -24,8 +31,7 @@ void pill(gfx::DrawList &d, const ui::FontRef &f, const std::string &s, float x,
 }
 } // namespace
 const char *keyboard_keys() {
-  return "1234567890qwertyuiopasdfghjkl:zxcvbnm./-_ "
-         "@[]ABCDEFGHIJKLMNOPQRSTUVWXYZ?=%&";
+  return "qwertyuiopasdfghjkl zxcvbnm./:1234567890";
 }
 void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
             int height, unsigned framebuffer) {
@@ -99,11 +105,38 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
           126, 451, 30, v.edit.empty() ? muted : white);
     const char *keys = v.secret_edit ? "0123456789abcdef" : keyboard_keys();
     for (int i = 0; keys[i]; ++i) {
-      float x = 96 + float(i % 10) * 172, y = 520 + float(i / 10) * 58;
+      float x = 96 + float(i % 10) * 160, y = 520 + float(i / 10) * 58;
       bool focus = i == v.key;
       d.rounded_rect({x, y, 129, 48}, 13, focus ? mint : panel);
-      label(d, f.mono, std::string(1, keys[i]), x + 51, y + 37, 27,
+      char ch = keys[i];
+      if (!v.secret_edit && v.caps && ch >= 'a' && ch <= 'z')
+        ch = (char)(ch - 32);
+      label(d, f.mono, std::string(1, ch), x + 51, y + 37, 27,
             focus ? gfx::Color::rgb(0x102d30) : white);
+    }
+    // Caps indicator and hint
+    gfx::Color caps_col = v.caps ? mint : muted;
+    label(d, f.regular, v.caps ? "△ CAPS ON" : "△ CAPS", 96, 760, 22, caps_col);
+    // QR code for phone setup form
+    if (!v.qr_url.empty() && !v.secret_edit) {
+      uint8_t qr[qrcodegen_BUFFER_LEN_MAX];
+      uint8_t tmp[qrcodegen_BUFFER_LEN_MAX];
+      if (qrcodegen_encodeText(v.qr_url.c_str(), tmp, qr, qrcodegen_Ecc_LOW,
+                               qrcodegen_VERSION_MIN, 10, qrcodegen_Mask_AUTO, true)) {
+        int sz = qrcodegen_getSize(qr);
+        float cell = 210.f / float(sz);
+        float qx = 1690.f, qy = 490.f;
+        d.rounded_rect({qx - 8, qy - 8, cell * sz + 16, cell * sz + 16}, 8, white);
+        for (int row = 0; row < sz; ++row) {
+          for (int col = 0; col < sz; ++col) {
+            if (qrcodegen_getModule(qr, col, row)) {
+              d.rounded_rect({qx + col * cell, qy + row * cell, cell, cell}, 0,
+                             gfx::Color::rgb(0x000000));
+            }
+          }
+        }
+        label(d, f.regular, "Scan to fill from phone", qx - 8, qy + cell * sz + 26, 18, muted);
+      }
     }
     label(d, f.regular, v.error, 96, 963, 24, gfx::Color::rgb(0xffb388));
   } else if (v.screen == Screen::models) {

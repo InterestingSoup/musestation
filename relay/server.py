@@ -64,6 +64,8 @@ class Application:
         self.exchange = exchange
         self.provider_token = provider_token
         self.console_token = console_token
+        self.pending_setup_config = None
+        self._setup_lock = threading.Lock()
 
     def health(self):
         return {"schema": 1, "service": "muse-build-relay", "state": "degraded" if self.exchange.last_error else "ready",
@@ -179,17 +181,95 @@ class Handler(BaseHTTPRequestHandler):
                     self.close_connection = True
                     return
                 raise RelayError(404, "Unknown provider resource")
-            if not (method == "GET" and path.path in ("/", "/health", "/setup-config") and not path.query):
+            if not (method == "GET" and path.path in ("/", "/health", "/setup-config", "/setup") and not path.query) and \
+               not (method == "POST" and path.path == "/setup" and not path.query):
                 self.authenticate()
             if path.query:
                 raise RelayError(400, "Unexpected query parameters")
             if method == "GET" and path.path in ("/", "/health"):
                 return self.reply(200, app.health())
             if method == "GET" and path.path == "/setup-config":
+                with app._setup_lock:
+                    pending = app.pending_setup_config
+                    app.pending_setup_config = None
+                if pending:
+                    return self.reply(200, {**pending, "relay_token": app.console_token.decode("ascii")})
                 return self.reply(200, {
                     "relay_token": app.console_token.decode("ascii"),
                     "shadowmount_url": "http://127.0.0.1:10101",
                 })
+            if method == "GET" and path.path == "/setup":
+                host = self.headers.get("Host") or "192.168.5.54:8860"
+                relay_url = f"http://{host}"
+                token = app.console_token.decode("ascii")
+                html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MuseStation Setup</title>
+<style>
+body{{font-family:sans-serif;max-width:480px;margin:32px auto;padding:0 16px;background:#0e1a1c;color:#e0f0f0}}
+h1{{font-size:1.3rem;color:#5af0d0;margin-bottom:4px}}
+p{{color:#8aaab0;font-size:.9rem;margin:0 0 20px}}
+label{{display:block;font-size:.85rem;color:#8aaab0;margin:14px 0 4px}}
+input{{width:100%;box-sizing:border-box;padding:10px;background:#1a2d30;border:1px solid #2a4040;border-radius:8px;color:#e0f0f0;font-size:1rem}}
+input:focus{{outline:none;border-color:#5af0d0}}
+.hint{{font-size:.75rem;color:#5a7a80;margin-top:3px}}
+button{{margin-top:24px;width:100%;padding:14px;background:#5af0d0;color:#0e1a1c;border:none;border-radius:10px;font-size:1.1rem;font-weight:700;cursor:pointer}}
+button:active{{background:#3ad0b0}}
+.ok{{display:none;color:#5af0d0;text-align:center;font-size:1.1rem;margin-top:16px}}
+</style></head>
+<body>
+<h1>MuseStation Setup</h1>
+<p>Fill in your config and tap Submit. The PS5 will pick it up automatically.</p>
+<form id="f" method="POST" action="/setup">
+<label>Console IP</label>
+<input name="console_ip" placeholder="192.168.x.x" required>
+<label>Server URL</label>
+<input name="server_url" value="{relay_url}" required>
+<label>Console Token</label>
+<input name="relay_token" value="{token}" readonly>
+<div class="hint">Pre-filled from relay — do not change.</div>
+<label>PS5LM URL <span style="color:#5a7a80">(optional)</span></label>
+<input name="ps5lm_url" placeholder="http://...">
+<label>Speech URL <span style="color:#5a7a80">(optional)</span></label>
+<input name="speech_url" placeholder="http://...">
+<label>Audio-In Module <span style="color:#5a7a80">(optional)</span></label>
+<input name="audio_in_module" placeholder="e.g. espeak">
+<label>Shadowmount URL <span style="color:#5a7a80">(optional)</span></label>
+<input name="shadowmount_url" value="http://127.0.0.1:10101">
+<button type="submit">Submit to PS5</button>
+</form>
+<div class="ok" id="ok">Sent! The PS5 will apply this config shortly.</div>
+<script>
+document.getElementById('f').onsubmit=async e=>{{
+  e.preventDefault();
+  const fd=new FormData(e.target);
+  await fetch('/setup',{{method:'POST',body:new URLSearchParams(fd)}});
+  document.getElementById('f').style.display='none';
+  document.getElementById('ok').style.display='block';
+}};
+</script>
+</body></html>"""
+                raw = html.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(raw)
+                self.close_connection = True
+                return
+            if method == "POST" and path.path == "/setup":
+                raw_body = self.body(8192)
+                from urllib.parse import parse_qs
+                params = {k: v[0] for k, v in parse_qs(raw_body.decode("utf-8", errors="replace")).items() if v}
+                allowed = {"console_ip", "server_url", "relay_token", "ps5lm_url",
+                           "speech_url", "audio_in_module", "shadowmount_url"}
+                config = {k: v for k, v in params.items() if k in allowed and v}
+                with app._setup_lock:
+                    app.pending_setup_config = config
+                return self.reply(200, {"ok": True})
             if method == "POST" and path.path == "/voice":
                 return self.reply(200, app.store.submit(self.json_body(65536)))
             match = re.fullmatch(r"/plan/(p[0-9a-f]{32})(/approve)?", path.path)

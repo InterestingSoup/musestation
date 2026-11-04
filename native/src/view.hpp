@@ -22,7 +22,9 @@ struct View {
       selection = 0, mode_choice = 0, budget_choice = 0;
   bool recording = false, busy = false, voice_verified = false,
        connected = false, reduced_motion = false, local = false,
-       connection_muse = true, model_ready = false, downloading_model = false;
+       connection_muse = true, model_ready = false, downloading_model = false,
+       caps = false;
+  std::string qr_url;
   float seconds = 0, fps = 0, meter = 0;
 };
 void render(hui::gfx::Renderer &, const hui::ui::Fonts &, const View &,
