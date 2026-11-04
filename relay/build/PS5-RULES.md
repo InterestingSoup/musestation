@@ -74,8 +74,52 @@ const std::uint32_t logo = muse_images::upload(renderer, muse_images::logo);
 d.image(logo, {760, 300, 400, 200}, hui::gfx::kFullUv, hui::gfx::Color::rgb(0xffffff));
 ```
 
-With images, the source hash covers `{"files": …, "images": …}` (canonical
-JSON); without images it remains the hash of the file map alone.
+With images or sounds, the source hash covers the canonical JSON of the parts
+present (`{"files", "images", "sounds"}`); with only files it remains the hash
+of the file map alone.
+
+## Sounds and music
+
+Send sound effects and music in an optional `sounds` object next to `files`
+(and `images`), as base64 data. Nothing is fetched from the internet.
+
+```json
+"sounds": {"capture.wav": "<base64 WAV>", "theme.ogg": "<base64 OGG Vorbis>"}
+```
+
+- **Effects: WAV**, uncompressed PCM 8/16/24-bit, mono or stereo, 8-96 kHz,
+  at most 60 s each. The relay converts them to the 48 kHz 16-bit stereo the
+  toolkit plays.
+- **Music: OGG Vorbis, 48 kHz** (not Opus, not 44.1 kHz), mono or stereo. It
+  streams from memory and loops.
+- Up to 12 sounds; names like `capture.wav` / `theme.ogg` (lowercase letters,
+  digits, underscore); at most 8 MiB each and 24 MiB after conversion.
+
+The relay ships them in the app as `/app0/assets/sounds/<name>` and generates
+`include/muse_sounds.hpp` (do not send it) with one path constant per sound:
+
+```cpp
+#include "include/muse_sounds.hpp"
+#include "audio/mixer.hpp"
+#include "platform/ps5/audio_out.hpp"
+
+hui::audio::Mixer mixer;
+muse_sounds::Music music;
+music.start(mixer, muse_sounds::theme);      // BEFORE audio_out.start(mixer)
+hui::ps5::AudioOut audio_out;
+audio_out.start(mixer);
+muse_sounds::Effect capture;
+muse_sounds::load(capture, muse_sounds::capture);
+// in the frame loop:
+music.pump();
+if (correct) muse_sounds::play(mixer, capture);   // gain, pitch optional
+// on exit: audio_out.stop(); before hui::sys::quit()
+```
+
+Without sound files you can still synthesise tones with
+`mixer.play_tone(hui::audio::Tone{...}, params)` (sine, triangle, soft square
+sweeps). With sounds, the source hash covers `{"files", "images", "sounds"}`
+(only the parts present).
 
 ## Automatic fixes
 

@@ -162,7 +162,7 @@ class Handler(BaseHTTPRequestHandler):
                     cursor = query.get("after", ["0"])[0]
                     if not re.fullmatch(r"[0-9]{1,19}", cursor):
                         raise RelayError(400, "Invalid outbox cursor")
-                    return self.reply(200, app.store.outbox(int(cursor)))
+                    return self.reply(200, app.store.outbox(int(cursor), record=True))
                 if path.query:
                     raise RelayError(400, "Unexpected query parameters")
                 if method == "POST" and path.path == "/provider/plans":

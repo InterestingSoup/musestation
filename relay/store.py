@@ -24,6 +24,7 @@ import uuid
 MAX_JSON = 2 * 1024 * 1024  # escaped source envelope; actual code <= 1 MiB
 MAX_LOG = 8 * 1024 * 1024
 from .images import ImageError, validate_images
+from .sounds import SoundError, validate_sounds
 
 MAX_PACKAGE = 1024 * 1024 * 1024
 ID = re.compile(r"[a-z][0-9a-f]{32}\Z")
@@ -130,7 +131,7 @@ def identifier(value, prefix=None):
 
 
 def source_manifest(value):
-    fields(value, ("schema", "type", "job_id", "approved_revision", "language", "files"), ("images",))
+    fields(value, ("schema", "type", "job_id", "approved_revision", "language", "files"), ("images", "sounds"))
     if type(value["schema"]) is not int or value["schema"] != 1 or value["type"] != "source" or value["language"] != "cpp":
         raise RelayError(400, "Expected schema-1 C++ source submission")
     identifier(value["job_id"], "j")
@@ -153,12 +154,18 @@ def source_manifest(value):
             validate_images(value["images"])
         except ImageError as exc:
             raise RelayError(400, f"Invalid image: {exc}") from exc
-    return source_digest(files, value.get("images"))
+    if "sounds" in value:
+        try:
+            validate_sounds(value["sounds"])
+        except SoundError as exc:
+            raise RelayError(400, f"Invalid sound: {exc}") from exc
+    return source_digest(files, value.get("images"), value.get("sounds"))
 
 
-def source_digest(files, images=None):
-    """SHA-256 of the canonical file map; with images, of {"files", "images"}."""
-    return hashlib.sha256(canonical(files if not images else {"files": files, "images": images})).hexdigest()
+def source_digest(files, images=None, sounds=None):
+    """SHA-256 of the canonical file map; with images/sounds, of {"files", "images", "sounds"}."""
+    bundle = {key: part for key, part in (("files", files), ("images", images), ("sounds", sounds)) if part}
+    return hashlib.sha256(canonical(files if len(bundle) == 1 else bundle)).hexdigest()
 
 
 class SafeDir:
@@ -520,12 +527,37 @@ class Store:
             self.event(db, "request", payload)
         return {"transcript": transcript, "plan_id": request_id}
 
+    def delivery(self, db, kind, key, id, since=0.0):
+        """Human status of whether Muse has received the newest `kind` event for id."""
+        row = db.execute("SELECT sequence FROM events WHERE type=? AND payload LIKE ? ORDER BY sequence DESC LIMIT 1",
+                         (kind, f'%"{key}":"{id}"%')).fetchone()
+        delivered = db.execute("SELECT value FROM meta WHERE key='provider_delivered'").fetchone()
+        polled = db.execute("SELECT value FROM meta WHERE key='provider_last_poll'").fetchone()
+        now = time.time()
+        if row is None:
+            return False, "Saved on the relay"
+        if polled is None:
+            return False, "Waiting for Muse to connect to the relay for the first time"
+        age = int(now - float(polled[0]))
+        if delivered is not None and int(delivered[0]) >= row[0]:
+            return True, ""
+        ahead = db.execute("SELECT count(*) FROM events WHERE sequence>? AND sequence<?",
+                           (int(delivered[0]) if delivered else 0, row[0])).fetchone()[0]
+        if age > 180:
+            return False, (f"Muse has not checked in for {age // 60} min, so it has not seen this yet. "
+                           "Its scheduled MuseStation worker may be stopped; ask Muse to run it")
+        queue = f"{ahead} earlier update{'s' if ahead != 1 else ''} ahead, " if ahead else ""
+        return False, f"Waiting for Muse to pick it up ({queue}Muse checked in {age} s ago)"
+
     def plan(self, id):
         identifier(id, "p")
         with self.db() as db:
             row = self.row(db, "requests", id)
-        if row["state"] == "planning":
-            return 202, {"id": id, "state": "planning", "detail": "Waiting for a Muse plan through the configured exchange"}
+            if row["state"] == "planning":
+                picked, waiting = self.delivery(db, "request", "request_id", id)
+                detail = ("Muse picked up your request and is writing the plan" if picked
+                          else "Request sent. " + waiting)
+                return 202, {"id": id, "state": "planning", "detail": detail, "muse_picked_up": picked}
         if row["state"] == "error":
             raise RelayError(422, row["detail"])
         return 200, {"id": id, "revision": row["revision"], "text": row["text"]}
@@ -606,11 +638,24 @@ class Store:
         identifier(id, "j")
         with self.db() as db:
             row = self.row(db, "jobs", id)
+            detail, picked = row["detail"], None
+            if row["state"] == "awaiting_source":
+                first = (row["attempt"] if "attempt" in row.keys() else 1) == 1
+                kind = "approved_job" if first else "result"
+                picked, waiting = self.delivery(db, kind, "job_id", id)
+                if first:
+                    detail = ("Muse picked up your approval and is writing the code (usually 2 to 10 minutes)" if picked
+                              else "Approval sent. " + waiting)
+                elif not picked:
+                    detail = row["detail"] + ". " + waiting
         if row["state"] == "done":
             return json.loads(row["manifest_json"])
-        return {"state": "error" if row["state"] == "error" else "building", "detail": row["detail"]}
+        value = {"state": "error" if row["state"] == "error" else "building", "detail": detail}
+        if picked is not None:
+            value["muse_picked_up"] = picked
+        return value
 
-    def outbox(self, after=0, limit=32, byte_limit=256 * 1024):
+    def outbox(self, after=0, limit=32, byte_limit=256 * 1024, record=False):
         if type(after) is not int or after < 0 or after > 2**63 - 1:
             raise RelayError(400, "Invalid outbox cursor")
         with self.db() as db:
@@ -623,7 +668,16 @@ class Store:
                 break
             total += size
             events.append(event)
-        return {"schema": 1, "events": events, "next_after": events[-1]["sequence"] if events else after}
+        delivered = events[-1]["sequence"] if events else after
+        if record:
+            # Remember how far Muse has read, so console statuses can say whether it
+            # has picked up a request/approval yet and when it last checked in.
+            with self.db(True) as db:
+                row = db.execute("SELECT value FROM meta WHERE key='provider_delivered'").fetchone()
+                if row is None or int(row[0]) < delivered:
+                    db.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('provider_delivered',?)", (str(delivered),))
+                db.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('provider_last_poll',?)", (repr(time.time()),))
+        return {"schema": 1, "events": events, "next_after": delivered}
 
     def append_logs(self, raw):
         if not raw or len(raw) > MAX_LOG:
@@ -657,8 +711,13 @@ class Store:
             with SafeDir(self.path / "logs") as directory:
                 directory.write(id + ".jsonl", raw)
             db.execute("INSERT INTO logs VALUES(?,?,?,?)", (id, digest, len(raw), time.time()))
-            self.event(db, "logs", {"schema": 1, "type": "logs", "log_id": id,
-                                   "size": len(raw), "sha256": digest})
+            # Tell Muse about logs sparingly: every console flush used to add an event,
+            # and on 2026-11-04 hundreds of them buried an approval in the outbox.
+            recent = db.execute("SELECT count(*) FROM events WHERE type='logs' AND created>?",
+                                (time.time() - 900,)).fetchone()[0]
+            if b'"level":"error"' in raw or not recent:
+                self.event(db, "logs", {"schema": 1, "type": "logs", "log_id": id,
+                                       "size": len(raw), "sha256": digest})
         return {"accepted": True, "log_id": id}
 
     def log_bytes(self, id):

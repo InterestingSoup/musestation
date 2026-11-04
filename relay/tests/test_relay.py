@@ -9,6 +9,7 @@ import sqlite3
 import struct
 import tempfile
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -732,6 +733,28 @@ class HTTPCase(StoreCase):
             self.assertEqual(int(headers["Content-Length"]), int(nbytes))
         self.assertEqual(self.call(self.console, "GET", f"/build/{job}/folder/../store.sqlite3")[0], 404)
         self.assertEqual(self.call(self.console, "GET", f"/build/{job}/folder/eboot.bin", auth=False)[0], 401)
+
+    def test_statuses_say_whether_muse_picked_up_work(self):
+        status, raw, _ = self.call(self.console, "POST", "/voice", {"transcript": "counter", "draft": "", "source": "on_console"})
+        plan_id = json.loads(raw)["plan_id"]
+        status, raw, _ = self.call(self.console, "GET", "/plan/" + plan_id)
+        self.assertEqual(status, 202)
+        self.assertIn("Waiting for Muse to connect", json.loads(raw)["detail"])
+        self.assertFalse(json.loads(raw)["muse_picked_up"])
+        self.assertEqual(self.call(self.provider, "GET", "/provider/outbox?after=0", auth=True)[0], 200)
+        status, raw, _ = self.call(self.console, "GET", "/plan/" + plan_id)
+        self.assertIn("Muse picked up your request", json.loads(raw)["detail"])
+        job, revision = self.approved()
+        detail = self.store.status(job)["detail"]
+        self.assertTrue(detail.startswith("Approval sent. Waiting for Muse to pick it up"), detail)
+        self.store.outbox(0, 64, record=True)
+        value = self.store.status(job)
+        self.assertTrue(value["muse_picked_up"])
+        self.assertIn("Muse picked up your approval", value["detail"])
+        with self.store.db(True) as db:
+            db.execute("UPDATE meta SET value=? WHERE key='provider_last_poll'", (repr(time.time() - 900),))
+            db.execute("UPDATE meta SET value='0' WHERE key='provider_delivered'")
+        self.assertIn("has not checked in for 15 min", self.store.status(job)["detail"])
 
     def test_private_token_permissions(self):
         path = self.base / "token"

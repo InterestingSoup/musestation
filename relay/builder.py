@@ -13,6 +13,7 @@ import subprocess
 import time
 from .images import ImageError, header as image_header, validate_images
 from .rules import check as rules_check
+from .sounds import SoundError, header as sound_header, validate_sounds
 
 MAX_FILES = 32
 MAX_FILE_BYTES = 256 * 1024
@@ -65,8 +66,9 @@ def validate_source(manifest: dict) -> tuple[dict[str, str], str]:
         total += size
     if total > MAX_SOURCE_BYTES:
         raise BuildError('source exceeds 1 MiB total')
-    images = manifest.get('images')
-    hashed = files if not images else {'files': files, 'images': images}
+    images, sounds = manifest.get('images'), manifest.get('sounds')
+    bundle = {key: part for key, part in (('files', files), ('images', images), ('sounds', sounds)) if part}
+    hashed = files if len(bundle) == 1 else bundle
     encoded = json.dumps(hashed, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
     files = dict(files)
     if images:
@@ -76,6 +78,13 @@ def validate_source(manifest: dict) -> tuple[dict[str, str], str]:
             files['include/muse_images.hpp'] = image_header(validate_images(images))
         except ImageError as exc:
             raise BuildError(f'invalid image: {exc}') from exc
+    if sounds:
+        if 'include/muse_sounds.hpp' in files:
+            raise BuildError('include/muse_sounds.hpp is generated from sounds; do not send it')
+        try:
+            files['include/muse_sounds.hpp'] = sound_header(validate_sounds(sounds))
+        except SoundError as exc:
+            raise BuildError(f'invalid sound: {exc}') from exc
     return files, hashlib.sha256(encoded).hexdigest()
 
 
@@ -325,7 +334,7 @@ class Builder:
                 'title_id': identity['title_id'], 'content_id': identity['content_id'], 'version': identity['version'],
                 'verification_path': str(report_path), 'hardware_verified': False}
 
-    def _keep_folder(self, title: Path, native: Path, output: Path, identity: dict):
+    def _keep_folder(self, title: Path, native: Path, output: Path, identity: dict, extra=()):
         """Keep the verified native title as a ShadowMountPlus folder app.
 
         MuseStation installs generated apps by writing this folder to
@@ -347,6 +356,14 @@ class Builder:
         shutil.copytree(title, folder, symlinks=False)
         files = [{'path': path, 'bytes': expected[path]['bytes'], 'sha256': expected[path]['sha256']}
                  for path in sorted(expected)]
+        # Muse's converted sounds ship next to the kit's fonts and are read from /app0 at runtime.
+        for rel, data in extra:
+            if rel in expected:
+                raise BuildError(f'generated asset collides with a kit file: {rel}')
+            (folder / rel).parent.mkdir(parents=True, exist_ok=True)
+            (folder / rel).write_bytes(data)
+            files.append({'path': rel, 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+        files.sort(key=lambda entry: entry['path'])
         manifest = {'schema': 1, 'format': 'shadowmount-folder', 'title_id': identity['title_id'],
                     'content_id': identity['content_id'], 'version': identity['version'], 'files': files,
                     'bytes': sum(entry['bytes'] for entry in files)}
@@ -405,7 +422,8 @@ class Builder:
                 [(title, '/input', True), (output, '/output', False)], package=True),
                 name, package_log, output, self.package_timeout)
             result = self._verify(title, output, identity)
-            result.update(self._keep_folder(title, native, output, identity))
+            sounds = [('assets/sounds/' + name, data) for _, name, data in validate_sounds(source_manifest.get('sounds'))]
+            result.update(self._keep_folder(title, native, output, identity, sounds))
             result.update(source_sha256=source_digest, kit_sha256=kit_digest,
                           compiler_image=compiler_id, package_image=package_id,
                           compiler_log=str(compile_log), package_log=str(package_log),
