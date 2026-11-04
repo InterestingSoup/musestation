@@ -674,6 +674,16 @@ class Store:
             else:
                 db.execute("UPDATE jobs SET source_json=?,source_sha=?,state='queued',detail='Muse sent the code. Starting the PS5 compiler' WHERE id=?",
                            (canonical(value).decode(), digest, id))
+                attempt = row["attempt"] if "attempt" in row.keys() else 1
+                if attempt > 1:
+                    # Diagnostics are written once per attempt; Muse has read the previous
+                    # attempt's by now, so archive them beside that attempt's files.
+                    old = self.path / "diagnostics" / (id + ".json")
+                    if old.exists():
+                        archive = self.path / "work" / f"{id}.attempt{attempt - 1}"
+                        archive.mkdir(mode=0o700, parents=True, exist_ok=True)
+                        os.replace(old, archive / "diagnostics.json")
+                    db.execute("DELETE FROM diagnostics WHERE id=?", (id,))
         return {"accepted": True, "job_id": id, "source_sha256": digest}
 
     def status(self, id):

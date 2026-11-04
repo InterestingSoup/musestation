@@ -93,9 +93,28 @@ class Exchange:
                 sub, name = "approved_jobs", payload["job_id"] + ".json"
             elif kind == "result":
                 sub, name = "results", payload["job_id"] + ".json"
+                # A job can now have several results (failed attempts, then success).
+                # The first keeps <job>.json; later ones are <job>.<sequence>.json.
+                with SafeDir(self.path / "outbound" / sub) as directory:
+                    try:
+                        first = directory.read(name, 1 << 20)
+                    except (RelayError, OSError):
+                        first = None
+                if first is not None and first != canonical(payload) + b"\n":
+                    name = f"{payload['job_id']}.{event['sequence']}.json"
                 if payload.get("diagnostics"):
-                    with SafeDir(self.path / "outbound" / sub) as directory:
-                        directory.write(payload["job_id"] + ".diagnostics.json", self.store.diagnostic_bytes(payload["job_id"]))
+                    diag = name[:-5] + ".diagnostics.json"
+                    try:
+                        raw = self.store.diagnostic_bytes(payload["job_id"])
+                    except (RelayError, OSError):
+                        raw = None  # archived when the next attempt started
+                    if raw is not None:
+                        with SafeDir(self.path / "outbound" / sub) as directory:
+                            try:
+                                directory.write(diag, raw)
+                            except RelayError as error:
+                                if error.status != 409:
+                                    raise
             elif kind == "logs":
                 sub, name = "logs", payload["log_id"] + ".json"
                 with SafeDir(self.path / "outbound" / sub) as directory:

@@ -167,6 +167,8 @@ class StoreCase(unittest.TestCase):
             def build(inner, job_dir, source, identity, output_dir):
                 raise Failure("Native source compile failed")
         for attempt in (1, 2, 3):
+            if attempt > 1:
+                self.store.save_diagnostics(job, [{"name": "compiler.log", "original_bytes": 1, "tail": f"try {attempt}", "truncated": False}])
             fixed = self.source(job, revision)
             fixed["files"] = {"main.cpp": f"// attempt {attempt}\nint main(){{}}\n"}
             self.store.ingest_source(fixed)
@@ -182,6 +184,32 @@ class StoreCase(unittest.TestCase):
             archived = json.loads((self.store.path / "work" / f"{job}.attempt{kept}" / "submission.json").read_text())
             self.assertIn(f"attempt {kept}", archived["files"]["main.cpp"])
         # A passing fourth build would need a new request and approval.
+
+    def test_fixed_attempt_succeeds_after_failure_with_diagnostics(self):
+        job, revision = self.approved()
+        self.store.ingest_source(self.source(job, revision))
+        class Failure(Exception):
+            pass
+        class Failing:
+            def build(inner, job_dir, source, identity, output_dir):
+                log = job_dir / "compiler.log"
+                log.write_bytes(b"error: no member named 'r1'\n")
+                failure = Failure("compile failed")
+                failure.log_paths = [log]
+                raise failure
+        self.assertTrue(run_one(self.store, Failing()))
+        fixed = self.source(job, revision)
+        fixed["files"] = {"main.cpp": "// fixed\nint main(){}\n"}
+        self.store.ingest_source(fixed)
+        class Passing:
+            def build(inner, job_dir, source, identity, output_dir):
+                log = job_dir / "compiler.log"
+                log.write_bytes(b"NATIVE_TITLE_COMPILE_COMPLETE\n")
+                result = fixture_package(output_dir / "title.pkg", identity)
+                return {**result, "compiler_log": str(log)}
+        self.assertTrue(run_one(self.store, Passing()))
+        self.assertEqual(self.store.status(job)["state"], "done")
+        self.assertTrue((self.store.path / "work" / f"{job}.attempt1" / "diagnostics.json").exists())
 
     def test_worker_rejects_mismatched_identity_and_hash(self):
         for tamper in ("sha256", "title_id", "artifact_path"):
