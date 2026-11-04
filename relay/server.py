@@ -275,6 +275,17 @@ document.getElementById('f').onsubmit=async e=>{{
                 return self.reply(status, value)
             if match and method == "POST" and match[2]:
                 return self.reply(200, app.store.approve(match[1], self.json_body(64 * 1024)))
+            if method == "GET" and path.path == "/creations":
+                raw = app.store.creations()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(raw)
+                self.close_connection = True
+                return
             match = re.fullmatch(r"/build/(j[0-9a-f]{32})/folder(?:/(.+))?", path.path)
             if match and method == "GET":
                 if match[2] is None:

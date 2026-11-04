@@ -549,6 +549,48 @@ class Store:
         queue = f"{ahead} earlier update{'s' if ahead != 1 else ''} ahead, " if ahead else ""
         return False, f"Waiting for Muse to pick it up ({queue}Muse checked in {age} s ago)"
 
+    def creations(self, limit=30):
+        """Newest creation sessions for the console's Creations screen.
+
+        One line per request: plan_id, revision, job_id, state, title_id, name,
+        created, detail, transcript, plan text (tab-separated, tabs/newlines
+        flattened). Plain text because the console JSON parser is bounded."""
+        def clean(value, n):
+            return " ".join(str(value or "").split())[:n]
+        lines = []
+        with self.db() as db:
+            requests = db.execute("SELECT * FROM requests ORDER BY created DESC LIMIT ?", (max(1, min(limit, 50)),)).fetchall()
+            for request in requests:
+                job = db.execute("SELECT * FROM jobs WHERE plan_id=? ORDER BY created DESC LIMIT 1", (request["id"],)).fetchone()
+                title, name, detail = "", "", request["detail"] or ""
+                if job is not None:
+                    identity = json.loads(job["identity_json"])
+                    title, name = identity.get("title_id", ""), identity.get("name", "")
+                    if job["state"] == "done":
+                        state, detail = "done", "Built. Press X to install it on this console"
+                    elif job["state"] == "error":
+                        state, detail = "failed", job["detail"]
+                    else:
+                        state = "fixing" if (job["attempt"] if "attempt" in job.keys() else 1) > 1 else "building"
+                        detail = None
+                elif request["state"] == "planning":
+                    state = "planning"
+                elif request["state"] == "error":
+                    state = "no plan"
+                else:
+                    state, detail = "plan ready", "Plan ready to review. Press X to open it"
+                lines.append([request["id"], request["revision"] or "", job["id"] if job is not None else "", state,
+                              title, name, str(int(request["created"])), detail, request["transcript"], request["text"] or ""])
+        out = []
+        for row in lines:
+            if row[7] is None:
+                row[7] = self.status(row[2]).get("detail", "")  # live build/pickup detail
+            elif row[3] == "planning":
+                row[7] = self.plan(row[0])[1]["detail"]
+            out.append("\t".join([clean(row[0], 40), clean(row[1], 64), clean(row[2], 40), clean(row[3], 16), clean(row[4], 9),
+                                  clean(row[5], 64), clean(row[6], 12), clean(row[7], 200), clean(row[8], 200), clean(row[9], 1500)]))
+        return ("\n".join(out) + ("\n" if out else "")).encode()
+
     def plan(self, id):
         identifier(id, "p")
         with self.db() as db:
@@ -614,7 +656,7 @@ class Store:
             self.event(db, "approved_job", {"schema": 1, "type": "approved_job", "job_id": job,
                 "request_id": id, "approved_revision": revision, "transcript": plan["transcript"],
                 "text": plan["text"], "artifact_kind": "pkg", "identity": identity,
-                "max_attempts": 1})
+                "max_attempts": self.MAX_ATTEMPTS})
         return {"job_id": job}
 
     def ingest_source(self, value):

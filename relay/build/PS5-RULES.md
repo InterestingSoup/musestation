@@ -140,6 +140,9 @@ sweeps). With sounds, the source hash covers `{"files", "images", "sounds"}`
 
 ## Automatic fixes
 
+This replaces the older one-attempt rule: `approved_job` events now carry
+`"max_attempts": 3`.
+
 If the rules gate or the compiler fails, the `result` event has
 `"fix_allowed": true`, `attempts`, `attempts_left` and a `diagnostics`
 reference. Read the diagnostics, fix the code and POST corrected source to
@@ -153,7 +156,11 @@ change what the app does while fixing: the plan was approved as written.
 For features these rules do not cover yet, look at how working PS5 homebrew
 does it (read, do not copy code without its licence):
 
-- Toolkit and examples: <https://github.com/blackbearreloaded/ps5-homebrew-ui>
+- **Toolkit headers (exact API, read these instead of guessing):**
+  <https://github.com/InterestingSoup/musestation/tree/main/vendor/native-ui/src>
+  (`core/input.hpp`, `gfx/draw_list.hpp`, `gfx/renderer.hpp`, `audio/mixer.hpp`,
+  `platform/ps5/pad.hpp`; raw files under
+  `https://raw.githubusercontent.com/InterestingSoup/musestation/main/vendor/native-ui/src/...`)
 - ProsperoStore (a native title app with sandbox-safe networking, sceHttp):
   <https://github.com/darkxex/ProsperoStore>
 - PS5 payload SDK (system library stubs, crt): <https://github.com/ps5-payload-dev/sdk>
