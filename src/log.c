@@ -120,8 +120,9 @@ int muse_log_flush(struct muse_log *log){
 }
 int muse_log_event(struct muse_log *log,const char *level,const char *event,const char *detail){
     if(!log||!log->client||(!log->fd_mode&&!*log->path)||!level||!event||!detail||strlen(level)>16||strlen(event)>64||strlen(detail)>4096)return -1;
-    /* Native operation_begin is a gate: no next operation overtakes recovery. */
-    if(log->recovery_pending&&!strcmp(event,"operation_begin")&&muse_log_flush(log))return -1;
+    /* Best-effort recovery flush: try to drain pending records before new work,
+     * but do not block the session if the relay is temporarily unreachable. */
+    if(log->recovery_pending&&!strcmp(event,"operation_begin"))muse_log_flush(log);
     struct stat st;if(!(log->fd_mode?fstat(log->spool_fd,&st):stat(log->path,&st))&&st.st_size>7*1024*1024){
         if(log->local_only&&!log->fd_mode){char previous[1060];if(snprintf(previous,sizeof previous,"%s.previous",log->path)>=(int)sizeof previous||rename(log->path,previous)||sync_parent(log->path))return -1;log->pending=0;}
         else if(muse_log_flush(log))return -1;
