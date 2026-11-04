@@ -21,6 +21,23 @@ source for the same job (see [Automatic fixes](#automatic-fixes)).
 - Saving small files with `hui::save::read_file` / `write_file`
   (`core/save_file.hpp`) under `/download0/`.
 
+## DualSense buttons (exact names)
+
+`hui::Action` (from `core/input.hpp`) has **only** these members. Do not guess
+others (`r1`, `r2`, `options`, `cross`, `square` do not exist):
+
+| Button | `hui::Action` | Button | `hui::Action` |
+|---|---|---|---|
+| Cross | `confirm` | L1 | `page_prev` |
+| Circle | `back` | R1 | `page_next` |
+| Triangle | `north` | L2 | `jump_prev` |
+| Square | `west` | R2 | `jump_next` |
+| D-pad | `up` `down` `left` `right` | Options | `menu` |
+| Touchpad click | `touch` | L3 / R3 | `l3` / `r3` |
+
+Use `input.is_pressed(hui::Action::page_next)` for a press this frame and
+`input.is_held(...)` while held. Analogue sticks: `input.stick_x` / `stick_y`.
+
 ## Rules
 
 1. **[gate] End through `hui::sys::quit()`.** Never `exit()`, `abort()` or a
