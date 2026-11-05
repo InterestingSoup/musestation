@@ -602,14 +602,14 @@ int main() {
             if (res.rc) fail("Install failed: " + res.error + ". Press R1 to retry from Creations.");
             else {
               view.screen = muse::Screen::home;
-              view.detail = std::string("Installed ") + res.work.manifest.folder_name + ". Open it from your PS5 home screen.";
+              view.detail = std::string("Installed ") + res.work.manifest.folder_name + ". Press Circle to close MuseStation, then open it from your PS5 home screen.";
               view.status = "Ready for your next idea.";
               pad.rumble(.3f, .18f);
             }
           } else {
             if (res.rc) view.status = "Install failed: " + res.error;
             else {
-              view.status = std::string("Installed ") + res.work.manifest.folder_name + ". Open it from your PS5 home screen.";
+              view.status = std::string("Installed ") + res.work.manifest.folder_name + ". Close MuseStation first, then open it from the home screen.";
               pad.rumble(.3f, .18f);
             }
             creations_refresh_at = view.seconds;
@@ -825,7 +825,7 @@ int main() {
                 view.progress = -1;
                 view.screen = muse::Screen::home;
                 view.detail = std::string("Installed ") + res.work.manifest.folder_name +
-                              ". Open it from your PS5 home screen.";
+                              ". Press Circle to close MuseStation, then open it from your PS5 home screen.";
                 view.status = "Ready for your next idea.";
                 muse_reset(&gate);
                 pad.rumble(.3f, .18f);
