@@ -293,7 +293,7 @@ void installed_marker(const char *artifact_dir, const std::string &job) {
   if (f) std::fclose(f);
 }
 // Muse-built apps live here (the sandbox cannot write ShadowMountPlus's /data/homebrew).
-const char *const kAppsRoot = "/data/musestation/apps";
+const char *const kAppsRoot = "/data/homebrew";
 void install_debug(const char *format, ...) {
   FILE *f = std::fopen("/data/muse-install-debug.log", "a");
   if (!f) return;
