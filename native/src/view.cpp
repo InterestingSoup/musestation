@@ -61,15 +61,16 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
   d.line(120, 91, 132, 79, 3, gfx::Color::rgb(0x102d30));
   d.line(132, 79, 132, 99, 3, gfx::Color::rgb(0x102d30));
   label(d, f.semibold, "MuseStation", 160, 103, 40, white);
-  const bool tabbed = v.screen == Screen::home || v.screen == Screen::creations || v.screen == Screen::library;
+  const bool tabbed = v.screen == Screen::home || v.screen == Screen::creations || v.screen == Screen::library || v.screen == Screen::modes;
   if (tabbed) {
     // Top tabs switched with L1 / R1.
-    const char *names[2] = {"Create", v.local ? "Library" : "Creations"};
+    const char *names[3] = {"Create", v.local ? "Library" : "Creations", "Settings"};
+    const int tab_idx = v.screen == Screen::home ? 0 : v.screen == Screen::modes ? 2 : 1;
     label(d, f.semibold, "L1", 470, 98, 20, muted);
     float x = 510;
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < 3; ++i) {
       const float w = f.semibold.font->measure(names[i], 24) + 56;
-      const bool on = (v.screen == Screen::home ? 0 : 1) == i;
+      const bool on = tab_idx == i;
       d.rounded_rect({x, 66, w, 46}, 23, on ? mint : panel.with_alpha(.85f));
       label(d, f.semibold, names[i], x + 28, 98, 24, on ? gfx::Color::rgb(0x102d30) : white);
       x += w + 14;
@@ -85,7 +86,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
         request                           ? "DESCRIBE YOUR APP"
         : setup                           ? "MAKE YOURSELF AT HOME"
         : v.screen == Screen::models      ? "OPTIONAL LOCAL CODING MODEL"
-        : v.screen == Screen::modes       ? "CHOOSE HOW TO CREATE"
+        : v.screen == Screen::modes       ? "SETTINGS"
         : v.screen == Screen::library     ? "YOUR LOCAL PROJECTS"
         : v.screen == Screen::creations   ? "YOUR CREATIONS WITH MUSE"
         : v.screen == Screen::connections ? "CONNECT A DEVELOPMENT PARTNER"
@@ -99,7 +100,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
       request                           ? v.field.empty() ? "What should we make?" : v.field
       : setup                           ? v.field
       : v.screen == Screen::models      ? "Choose your local model."
-      : v.screen == Screen::modes       ? "Your idea. Muse builds it."
+      : v.screen == Screen::modes       ? "App settings and updates."
       : v.screen == Screen::library     ? "Your ideas, kept here."
       : v.screen == Screen::creations   ? "Everything you've made."
       : v.screen == Screen::update      ? "Install the latest build."
@@ -182,26 +183,22 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
     label(d,f.mono,f.mono.font->fit(v.status,23,1560),132,831,23,white);
     if(!v.error.empty())ui::paragraph(d,f.regular,v.error,132,875,22,1560,28,gfx::Color::rgb(0xffb388),2);
   } else if (v.screen == Screen::modes) {
-    const char *names[] = {"Hybrid with Muse", "Local lab", "Other providers"};
-    const char *details[] = {
-      "Speak on your PS5. Muse plans and develops a native app. Review the plan before approving a build.",
-      "Optional model download, then offline creation. Apps play inside MuseStation. Existing projects stay here.",
-      "Bring your preferred development provider in a future release. Muse is the first integration."};
-    for (int i=0; i<3; ++i) {
-      float x=96+float(i)*584;
-      card(d,{x,380,560,438});
-      if (i==v.mode_choice) d.rounded_rect({x,380,560,7},3,mint);
-      label(d,f.semibold,names[i],x+30,445,32,i==v.mode_choice?mint:white);
-      ui::paragraph(d,f.regular,details[i],x+30,506,27,500,39,muted,6);
-      label(d,f.regular,i==v.mode_choice?(i==0?"X  Set up Opti3 relay":i==1?"X  Open Local lab":"X  View provider status"):"D-pad to select",x+30,772,23,white);
-    }
-    const char *budgets[]={"4 attempts / 2 active hours", "64 attempts / 24 active hours", "512 attempts / 7 active days"};
-    if (v.mode_choice==1) {
-      label(d,f.semibold,std::string("Local budget: ")+budgets[v.budget_choice]+"  /  Up or Down changes it",96,870,25,mint);
-      ui::paragraph(d,f.regular,"Keep MuseStation open and the console awake. Jobs stop at their limits; saved work can be resumed from your library.",96,918,24,1728,34,muted,2);
-    } else {
-      label(d,f.semibold,"Local transcription and speech. Muse handles development.",96,870,25,mint);
-      ui::paragraph(d,f.regular,"Your Opti3 relay exchanges requests and plans with Muse through a shared folder. Configure its LAN address to begin.",96,918,24,1728,34,muted,2);
+    struct SettingsRow { const char *title; const char *desc; };
+    const SettingsRow rows[] = {
+      {"Mode",              "Switch between Hybrid (Relay) and Local Lab creation."},
+      {"Connections",       "Configure relay address, token, and provider links."},
+      {"Update MuseStation","Download and install the latest build from your relay."},
+      {"Diagnostics",       "Console health, network status, and log viewer."},
+    };
+    const char *mode_val = v.local ? "Local Lab" : "Hybrid";
+    for (int i = 0; i < 4; ++i) {
+      float y = 340 + float(i) * 104;
+      d.rounded_rect({96, y, 1728, 86}, 18, i == v.selection ? mint.with_alpha(.18f) : panel);
+      if (i == v.selection) d.rounded_rect({96, y, 6, 86}, 3, mint);
+      label(d, f.semibold, rows[i].title, 124, y + 32, 28, white);
+      label(d, f.regular, rows[i].desc, 124, y + 64, 20, muted);
+      const char *val = (i == 0) ? mode_val : "→";
+      label(d, f.mono, val, 1740 - f.mono.font->measure(val, 24), y + 48, 24, i == v.selection ? mint : muted);
     }
   } else if (v.screen == Screen::library || v.screen == Screen::creations) {
     const bool made = v.screen == Screen::creations;
@@ -320,7 +317,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
         v.screen == Screen::model_url ? "X  Type     Square  Delete     R1  Download     Circle  Back"
         : setup ? (v.secret_edit ? "X  Type     Square  Delete     R1  Continue     Circle  Back" : "X  Type     Square  Delete     Triangle  Caps     R1  Continue     Circle  Back")
         : v.screen == Screen::models ? v.downloading_model ? "Circle  Cancel download" : v.model_ready ? "X  Download recommended     Square  Custom URL     R1  Continue     Circle  Modes" : "X  Download recommended     Square  Custom URL     Circle  Modes"
-        : v.screen == Screen::modes ? v.mode_choice==1 ? "Left / Right  Mode     Up / Down  Budget     X  Select     Triangle  Update     Circle  Back" : "Left / Right  Mode     X  Select     Triangle  Update     Circle  Back"
+        : v.screen == Screen::modes ? "Up / Down  Choose     X  Open     L1  Creations     Circle  Home"
         : v.screen == Screen::library ? "D-pad  Choose     X  Open project     L1  Create     Circle  Back"
         : v.screen == Screen::creations ? "D-pad  Choose     X  Install / Open plan     Square  Change it     L1  Create     Circle  Back"
         : v.screen == Screen::connections ? v.connection_muse ? "X / Square  Configure relay     Circle  Back" : "Circle  Back     Provider connection unavailable"
@@ -329,8 +326,8 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
         : v.screen == Screen::plan ? "X  Approve     Square  Add detail     "
                                      "Circle  Cancel     Hold R2  Speak"
         : v.screen == Screen::planning ? "Circle  Cancel request     L1 + R1  Close and keep request for later"
-        : v.local ? "X  Type idea     R2  Speak     R1  Library     Options  Modes     L1 + R1  Close"
-                  : "X  Type idea     R2  Speak     R1  Creations     Options  Modes     L1 + R1  Close",
+        : v.local ? "X  Type idea     R2  Speak     R1  Library     L1 + R1  Close"
+                  : "X  Type idea     R2  Speak     R1  Creations     L1 + R1  Close",
         96, 1040, 24, white);
   if (!setup) {
     char fps[40];

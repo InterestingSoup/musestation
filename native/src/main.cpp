@@ -1016,32 +1016,43 @@ int main() {
     }
     if (!exit_pending) {
     if (view.screen == muse::Screen::modes) {
-      if (input.nav==Direction::left) view.mode_choice=(view.mode_choice+2)%3;
-      if (input.nav==Direction::right) view.mode_choice=(view.mode_choice+1)%3;
-      if (view.mode_choice==1 && input.nav==Direction::up) view.budget_choice=(view.budget_choice+2)%3;
-      if (view.mode_choice==1 && input.nav==Direction::down) view.budget_choice=(view.budget_choice+1)%3;
+      if (input.nav==Direction::up) view.selection=std::max(0,view.selection-1);
+      if (input.nav==Direction::down) view.selection=std::min(3,view.selection+1);
       if (input.is_pressed(Action::confirm) && !view.busy) {
-        if (view.mode_choice!=1) {
-          view.connection_muse=view.mode_choice==0;
-          view.screen=muse::Screen::connections;
-        } else {
-          pending_config=cfg;
-          snprintf(pending_config.build_mode,sizeof pending_config.build_mode,"local");
-          snprintf(pending_config.hybrid_provider,sizeof pending_config.hybrid_provider,"muse");
-          pending_config.phone_port=0;
-          open_model_setup=true;
-          // Local needs no typed settings any more; only fall back to the
-          // setup screen if the saved settings fail validation.
-          if (!muse_config_validate(&pending_config,config_error,sizeof config_error)) apply_settings();
-          else setup();
+        switch (view.selection) {
+          case 0: // Mode toggle
+            if (!view.local) {
+              // Switch to local
+              pending_config=cfg;
+              snprintf(pending_config.build_mode,sizeof pending_config.build_mode,"local");
+              snprintf(pending_config.hybrid_provider,sizeof pending_config.hybrid_provider,"muse");
+              pending_config.phone_port=0;
+              open_model_setup=true;
+              if (!muse_config_validate(&pending_config,config_error,sizeof config_error)) apply_settings();
+              else setup();
+            } else {
+              // Switch to hybrid
+              view.connection_muse=true;
+              view.screen=muse::Screen::connections;
+            }
+            break;
+          case 1: // Connections
+            view.connection_muse=!view.local;
+            view.screen=muse::Screen::connections;
+            break;
+          case 2: // Update
+            view.screen=muse::Screen::update;
+            view.status="Press X to download and install the latest MuseStation update from your relay.";
+            view.error.clear();
+            break;
+          case 3: // Diagnostics
+            view.screen=muse::Screen::diagnostics;
+            break;
         }
       }
-      if (input.is_pressed(Action::back) && configured) view.screen=muse::Screen::home;
-      if (input.is_pressed(Action::north) && !view.busy) {
-        view.screen=muse::Screen::update;
-        view.status="Press X to download and install the latest MuseStation update from your relay.";
-        view.error.clear();
-      }
+      if (input.is_pressed(Action::back) && configured) { view.screen=muse::Screen::home; view.tab=0; }
+      if (input.is_pressed(Action::page_prev) && !input.is_held(Action::page_next))
+        { view.screen=muse::Screen::creations; view.tab=1; view.selection=0; }
     } else if (view.screen==muse::Screen::models || view.screen==muse::Screen::model_url) {
       if (view.downloading_model) {
         const uint64_t total=worker.model_transfer.total.load(),received=worker.model_transfer.received.load();
@@ -1053,7 +1064,7 @@ int main() {
           if(input.is_pressed(Action::confirm)){url=muse::recommended_model_url();start=true;}
           if(input.is_pressed(Action::west)){view.screen=muse::Screen::model_url;view.field="Hugging Face GGUF file URL";view.edit="https://huggingface.co/";view.error.clear();view.key=0;view.secret_edit=false;}
           if(input.is_pressed(Action::page_next)&&view.model_ready){view.screen=muse::Screen::home;view.detail=home_detail();}
-          if(input.is_pressed(Action::back))modes();
+          if(input.is_pressed(Action::back)){view.screen=muse::Screen::modes;view.tab=2;view.selection=0;}
         } else {
           const int count=int(strlen(muse::keyboard_keys()));
           if(input.nav==Direction::left)view.key=(view.key+count-1)%count;
@@ -1083,7 +1094,7 @@ int main() {
         snprintf(pending_config.hybrid_provider,sizeof pending_config.hybrid_provider,"muse");
         setup();
       }
-      if (input.is_pressed(Action::back)) modes();
+      if (input.is_pressed(Action::back)) { view.screen=muse::Screen::modes; view.tab=2; view.selection=1; }
     } else if (view.screen==muse::Screen::update) {
       if (!view.busy && input.is_pressed(Action::confirm)) {
         muse::Work w; w.type=muse::Task::self_update; w.generation=gate.generation;
@@ -1091,7 +1102,7 @@ int main() {
           view.status = "Downloading update from relay...";
         }
       }
-      if (!view.busy && input.is_pressed(Action::back)) modes();
+      if (!view.busy && input.is_pressed(Action::back)) { view.screen=muse::Screen::modes; view.tab=2; view.selection=2; }
     } else if (view.screen==muse::Screen::creations) {
       const int count = int(creations.size());
       if (input.nav==Direction::up) view.selection=std::max(0,view.selection-1);
@@ -1200,7 +1211,7 @@ int main() {
         }
       }
     } else {
-      // Top tabs (L1/R1, like Orbit): Create <-> Creations (Hybrid) / Library (Local).
+      // Top tabs (L1/R1): Create → Creations → Settings.
       if (view.screen == muse::Screen::home && configured && !view.busy && !install_active && !plan_active &&
           gate.state == MUSE_IDLE && input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
         if (view.local) {
@@ -1213,7 +1224,16 @@ int main() {
           creations_refresh_at = view.seconds;
         }
       }
-      if (input.is_pressed(Action::menu) && !view.busy && !install_active && !local_run && !plan_active) modes();
+      // R1 from Creations → Settings tab.
+      if ((view.screen == muse::Screen::creations || view.screen == muse::Screen::library) &&
+          !view.busy && !install_active &&
+          input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
+        view.screen = muse::Screen::modes; view.tab = 2; view.selection = 0;
+      }
+      // Options from anywhere → Settings tab.
+      if (input.is_pressed(Action::menu) && !view.busy && !install_active && !local_run && !plan_active) {
+        view.screen = muse::Screen::modes; view.tab = 2; view.selection = 0;
+      }
       if (view.local && view.screen==muse::Screen::project && input.is_pressed(Action::west)) {
         local_run=false;
         if (view.busy) worker.request_pause();
