@@ -1245,33 +1245,49 @@ void Worker::loop() {
         r.rc = muse_log_flush(&journal);
         break;
       case Task::self_update: {
-        // 1. Ask relay for the new eboot version info.
-        unsigned char *info_resp = nullptr; size_t info_len = 0;
-        r.rc = muse_client_http(&client, client.config.server_url, "GET", "/system/update/info",
-                                "application/json", nullptr, 0, 4096, &info_resp, &info_len);
+        const char *live = "/data/homebrew/PPSA99576/eboot.bin";
+        const char *tmp  = "/data/homebrew/PPSA99576/eboot.bin.new";
+
+        // 1. Download new eboot directly from relay.
+        // unlink(live) removes the directory entry while the running inode
+        // stays mapped. Creating a new file at the same path gets a fresh
+        // inode with no ETXTBSY restriction — same mechanic as apt/pkg upgrade.
+        unsigned char *body = nullptr;
+        size_t length = 0;
+        r.rc = muse_client_http(&client, client.config.server_url, "GET", "/system/update/eboot",
+                                "application/octet-stream", nullptr, 0, 64 * 1024 * 1024,
+                                &body, &length);
         if (!r.rc && client.http_status != 200) r.rc = -1;
-        if (r.rc) { r.error = client.error[0] ? client.error : "Could not reach relay update endpoint"; free(info_resp); break; }
-        std::string version_tag;
-        if (info_resp) {
-          const char *vp = strstr(reinterpret_cast<char *>(info_resp), "\"version\":");
-          if (vp) {
-            vp += 10; while (*vp == ' ' || *vp == '"') ++vp;
-            while (*vp && *vp != '"' && *vp != ',' && *vp != '}') version_tag += *vp++;
-          }
+        if (r.rc || !body || length < 1024) {
+          r.error = client.error[0] ? client.error : "Could not download eboot from relay";
+          free(body); break;
         }
-        free(info_resp);
-        // 2. Tell the relay to FTP the new eboot after we quit.
-        // The app is a running executable so it cannot be overwritten while
-        // it is loaded (ETXTBSY). The relay waits 10 s after this call, then
-        // FTPs the eboot directly to /data/homebrew/PPSA99576/eboot.bin and
-        // triggers a ShadowMount scan. The console simply quits after this.
-        unsigned char *apply_resp = nullptr; size_t apply_len = 0;
-        r.rc = muse_client_http(&client, client.config.server_url, "POST", "/system/update/apply",
-                                "application/json", "{}", 2, 4096, &apply_resp, &apply_len);
-        free(apply_resp);
-        if (r.rc) { r.error = "Relay could not queue the update — check relay logs"; break; }
+
+        // 2. Write to staging file.
+        FILE *f = fopen(tmp, "wb");
+        if (!f) {
+          r.error = std::string("Cannot open staging file: ") + strerror(errno);
+          free(body); break;
+        }
+        size_t written = fwrite(body, 1, length, f);
+        fclose(f);
+        free(body);
+        if (written != length) {
+          unlink(tmp);
+          r.error = "Write incomplete — disk full?";
+          break;
+        }
+
+        // 3. Atomic swap: unlink running binary, rename staging into its place.
+        unlink(live);
+        if (rename(tmp, live) != 0) {
+          r.error = std::string("Rename failed: ") + strerror(errno);
+          unlink(tmp);
+          break;
+        }
+
+        muse_log_event(&journal, "info", "self_update_installed", "done");
         r.rc = 0;
-        muse_log_event(&journal, "info", "self_update_queued", version_tag.empty() ? "done" : version_tag.c_str());
         r.error.clear();
         break;
       }

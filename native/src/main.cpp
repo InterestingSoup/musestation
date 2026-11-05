@@ -620,7 +620,7 @@ int main() {
           if (res.rc) {
             view.status = "Update failed: " + res.error;
           } else {
-            view.status = "Update queued. MuseStation will close — wait 15 s then relaunch from your home screen.";
+            view.status = "Update installed. Close this message then relaunch MuseStation from your home screen.";
             pad.rumble(.3f, .18f);
             exit_pending = true;
           }
