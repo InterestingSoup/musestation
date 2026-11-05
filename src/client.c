@@ -623,13 +623,11 @@ static int muse_client_install_folder_inner(struct muse_client *c,const char *jo
     /* Each build gets its own folder (<TITLE>.<job>): renaming a folder ShadowMountPlus
      * is using (or one created by another user) is refused in the title sandbox. */
     if(progress)progress(context,done,m->folder_size,"Moving the new version into place");
-    /* Install into /data/homebrew/<TITLE_ID>/ — the exact path ShadowMount scans natively,
-     * same as an FTP install. A manual source with a job-suffixed name caused ShadowMount's
-     * game-switch path to leave a stuck nullfs (status=16 Device busy) on every launch. */
+    /* Use the exact title_id as folder name (no job suffix). Best-effort unmount + remove
+     * of any previous install before renaming the staging folder into place. */
     char final_dir[512];snprintf(final_dir,sizeof final_dir,"%s/%s",root,m->title_id);
     struct stat st;
     if(!stat(final_dir,&st)&&S_ISDIR(st.st_mode)){
-        /* Best-effort unmount before replacing — avoids EBUSY on the remove. */
         char umount_body[64];int umount_len=snprintf(umount_body,sizeof umount_body,"{\"title_id\":\"%s\"}",m->title_id);
         unsigned char *ur=NULL;size_t urn=0;
         (void)http_request(c,c->config.shadowmount_url,"POST","/api/v1/games/unmount","application/json",umount_body,(size_t)umount_len,65536,&ur,&urn,0,0);
@@ -640,13 +638,36 @@ static int muse_client_install_folder_inner(struct muse_client *c,const char *jo
         int e=errno;(void)remove_tree(stage,0);
         snprintf(c->error,sizeof c->error,"Cannot move the app into %s (%s)",final_dir,strerror(e));return -1;
     }
-    if(progress)progress(context,done,m->folder_size,"Asking ShadowMount+ to scan");
+    if(progress)progress(context,done,m->folder_size,"Asking ShadowMount+ to install it");
     unsigned char *reply=NULL;size_t reply_len=0;
-    /* Trigger a rescan so ShadowMount picks up the new folder from its standard path. */
-    if(http_request(c,c->config.shadowmount_url,"POST","/api/v1/scan","application/json","{}",2,65536,&reply,&reply_len,0,0)){
-        free(reply);return fail(c,"The app was copied, but ShadowMount+ scan could not be triggered");
+    char add[700];int add_len=snprintf(add,sizeof add,"{\"path\":\"%s\"}",final_dir);
+    if(add_len<0||add_len>=(int)sizeof add)return fail(c,"Install path is too long");
+    if(http_request(c,c->config.shadowmount_url,"POST","/api/v1/manual/add","application/json",add,(size_t)add_len,65536,&reply,&reply_len,0,0)){
+        free(reply);return fail(c,"The app was copied, but ShadowMount+ did not accept it as a source");
     }
     free(reply);reply=NULL;
+    /* Retire older copies of this title from the manual source list. */
+    if(!http_request(c,c->config.shadowmount_url,"POST","/api/v1/manual/list","application/json","{}",2,262144,&reply,&reply_len,0,0)&&reply){
+        char prefix[600];snprintf(prefix,sizeof prefix,"%s/%s",root,m->title_id);
+        char *cur=(char *)reply;
+        while((cur=strchr(cur,'"'))){
+            char *endq=cur+1;while(*endq&&*endq!='"'){if(*endq=='\\'&&endq[1])endq++;endq++;}
+            if(!*endq)break;
+            char path_buf[600];size_t n=0;
+            for(char *q=cur+1;q<endq&&n+1<sizeof path_buf;q++){if(*q=='\\'&&q+1<endq)q++;path_buf[n++]=*q;}
+            path_buf[n]=0;cur=endq+1;
+            if(!strncmp(path_buf,prefix,strlen(prefix))&&strcmp(path_buf,final_dir)&&
+               (path_buf[strlen(prefix)]==0||path_buf[strlen(prefix)]=='.')){
+                char rm[700];int rm_len=snprintf(rm,sizeof rm,"{\"path\":\"%s\"}",path_buf);
+                unsigned char *r2=NULL;size_t r2n=0;
+                if(rm_len>0&&rm_len<(int)sizeof rm)
+                    (void)http_request(c,c->config.shadowmount_url,"POST","/api/v1/manual/remove","application/json",rm,(size_t)rm_len,65536,&r2,&r2n,0,0);
+                free(r2);
+                (void)remove_tree(path_buf,0);
+            }
+        }
+    }
+    free(reply);
     char body[64];int body_len=snprintf(body,sizeof body,"{\"title_id\":\"%s\"}",m->title_id);
     for(int attempt=0;attempt<30;attempt++){
         struct timespec pause={2,0};nanosleep(&pause,NULL);
@@ -658,5 +679,5 @@ static int muse_client_install_folder_inner(struct muse_client *c,const char *jo
             if(installed){c->error[0]=0;return 0;}
         } else free(reply);
     }
-    return fail(c,"The app was copied, but ShadowMount+ has not registered it yet; check its library page");
+    return fail(c,"The app was copied, but ShadowMount+ has not switched to it yet; check its library page");
 }
