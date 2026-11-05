@@ -45,6 +45,9 @@ enum class Task {
   local_cancel,
   creations_list,
   creation_install,
+  notices_poll,
+  notice_seen,
+  notice_reply,
   stop
 };
 struct Work {
@@ -60,6 +63,9 @@ struct CreationRow {
   std::string plan_id, revision, job_id, state, title_id, name, detail, transcript, plan_text;
   long long created = 0;
 };
+struct NoticeRow {
+  std::string id, level, origin, target, name, text;
+};
 struct Result {
   Work work;
   int rc = 0;
@@ -72,10 +78,12 @@ struct Result {
   std::vector<muse_local_job> local_jobs;
   int speech_chunks = 0;  // sentences already handed over for early playback
   std::vector<CreationRow> creations;
+  std::vector<NoticeRow> notices;
   bool coding_model_unavailable = false;
   bool needs_init = false, configuration_applied = false, plan_retryable = false;
 };
 void installed_marker(const char *artifact_dir, const std::string &job);
+void install_debug(const char *format, ...);
 class Worker {
 public:
   bool start(const muse_config &);

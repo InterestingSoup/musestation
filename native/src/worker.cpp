@@ -2,6 +2,9 @@
 #include <cstdarg>
 #include "worker.hpp"
 #include "local_app.h"
+extern "C" {
+#include "json.h"
+}
 #include "platform/ps5/system.hpp"
 #include <algorithm>
 #include <cmath>
@@ -289,8 +292,20 @@ void installed_marker(const char *artifact_dir, const std::string &job) {
   FILE *f = std::fopen((dir + "/" + job).c_str(), "wb");
   if (f) std::fclose(f);
 }
+void install_debug(const char *format, ...) {
+  FILE *f = std::fopen("/data/muse-install-debug.log", "a");
+  if (!f) return;
+  va_list args;
+  va_start(args, format);
+  std::vfprintf(f, format, args);
+  va_end(args);
+  std::fputc('\n', f);
+  std::fclose(f);
+}
 void Worker::folder_progress(void *context, uint64_t done, uint64_t total, const char *stage) {
   auto *self = static_cast<Worker *>(context);
+  if (stage && !std::strchr(stage, '/') && !std::strchr(stage, '.'))
+    install_debug("  stage: %s (%llu/%llu)", stage, (unsigned long long)done, (unsigned long long)total);
   self->install_done.store(done);
   self->install_total.store(total);
   pthread_mutex_lock(&self->stage_mutex);
@@ -944,10 +959,66 @@ void Worker::loop() {
         free(body);
         break;
       }
+      case Task::notices_poll: {
+        // Messages from Muse or the relay about any creation (shown as a pop-up).
+        unsigned char *body = nullptr;
+        size_t length = 0;
+        r.rc = muse_client_http(&client, client.config.server_url, "GET", "/notices", "text/plain",
+                                nullptr, 0, 128 * 1024, &body, &length);
+        if (!r.rc && body) {
+          std::string text(reinterpret_cast<char *>(body), length);
+          size_t start = 0;
+          while (start < text.size()) {
+            size_t end = text.find('\n', start);
+            if (end == std::string::npos) end = text.size();
+            std::vector<std::string> f;
+            size_t a = start;
+            for (int k = 0; k < 6; ++k) {
+              size_t t = text.find('\t', a);
+              if (t == std::string::npos || t > end) break;
+              f.push_back(text.substr(a, t - a));
+              a = t + 1;
+            }
+            if (f.size() == 6) {
+              NoticeRow n;
+              n.id = f[0]; n.level = f[1]; n.origin = f[2]; n.target = f[3]; n.name = f[4];
+              n.text = text.substr(a, end - a);
+              r.notices.push_back(std::move(n));
+            }
+            start = end + 1;
+          }
+        }
+        free(body);
+        break;
+      }
+      case Task::notice_seen:
+      case Task::notice_reply: {
+        std::string path = "/notices/" + w.id + (w.type == Task::notice_seen ? "/seen" : "/reply");
+        std::string json = "{}";
+        if (w.type == Task::notice_reply) {
+          std::vector<char> quoted(w.text.size() * 6 + 8);
+          if (muse_json_quote(w.text.c_str(), quoted.data(), quoted.size())) { r.rc = -1; r.error = "Reply is too long."; break; }
+          json = std::string("{\"text\":") + quoted.data() + "}";
+        }
+        unsigned char *body = nullptr;
+        size_t length = 0;
+        r.rc = muse_client_http(&client, client.config.server_url, "POST", path.c_str(), "application/json",
+                                json.data(), json.size(), 4096, &body, &length);
+        if (!r.rc && client.http_status != 200) r.rc = -1;
+        if (r.rc) r.error = client.error[0] ? client.error : "The relay did not accept that.";
+        free(body);
+        break;
+      }
       case Task::creation_install: {
         // Install a finished creation from the Creations tab (any session, any time).
         muse_build_status st{};
         r.rc = muse_client_status(&client, w.id.c_str(), &st);
+        if (r.rc) {
+          r.error = std::string("Cannot read this build's status from the relay: ") +
+                    (client.error[0] ? client.error : "no reason given");
+          install_debug("creation_install %s status: %s", w.id.c_str(), r.error.c_str());
+          break;
+        }
         if (!r.rc && (std::strcmp(st.state, "done") || !st.folder_sha256[0])) {
           r.rc = -1;
           r.error = "This creation has no installable folder app yet.";
@@ -958,8 +1029,11 @@ void Worker::loop() {
           install_total.store(st.folder_size);
           r.rc = muse_client_install_folder(&client, w.id.c_str(), &st, "/data/homebrew",
                                             &Worker::folder_progress, this);
+          // Keep the reason before logging: the journal flush reuses the client and clears it.
+          if (r.rc) r.error = client.error[0] ? client.error : "folder install failed without a reason";
+          install_debug("creation_install %s %s: rc=%d error=%s", w.id.c_str(), st.title_id, r.rc, r.error.c_str());
           muse_log_event(&journal, r.rc ? "error" : "info", "creation_install",
-                         r.rc ? client.error : st.title_id);
+                         r.rc ? r.error.c_str() : st.title_id);
           r.work.manifest = st;
           if (!r.rc) {
             r.install.installed = r.install.completed = true;
@@ -982,8 +1056,10 @@ void Worker::loop() {
           install_total.store(w.manifest.folder_size);
           r.rc = muse_client_install_folder(&client, w.id.c_str(), &w.manifest, "/data/homebrew",
                                             &Worker::folder_progress, this);
+          if (r.rc) r.error = client.error[0] ? client.error : "folder install failed without a reason";
+          install_debug("folder_install %s %s: rc=%d error=%s", w.id.c_str(), w.manifest.title_id, r.rc, r.error.c_str());
           muse_log_event(&journal, r.rc ? "error" : "info", "folder_install",
-                         r.rc ? client.error : w.manifest.title_id);
+                         r.rc ? r.error.c_str() : w.manifest.title_id);
           if (!r.rc) {
             r.install.installed = r.install.completed = true;
             r.path = std::string("/data/homebrew/") + w.manifest.title_id;
