@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <pthread.h>
 #include <string>
 #include <unistd.h>
@@ -214,6 +215,7 @@ int main() {
   muse_phone *phone = nullptr;
   bool folder_install = false;
   std::vector<muse::CreationRow> creations;
+  bool resume_pending = false, resumed_build = false;
   double creations_refresh_at = 0;
   float build_started = 0;
   bool worker_started = false, exit_pending = false, quit_after_flush = false,
@@ -254,6 +256,7 @@ int main() {
       worker_started = worker.start(cfg);
       need_init = worker_started;
       plan_recovery = worker_started && !muse_config_local(&cfg);
+      resume_pending = plan_recovery;  // pick up the newest creation where it was left
       if (!worker_started) {
         view.screen = muse::Screen::error;
         view.detail =
@@ -548,6 +551,31 @@ int main() {
               view.projects.push_back({title, state, detail});
             }
             view.selection = std::clamp(view.selection, 0, std::max(0, int(creations.size()) - 1));
+            if (res.work.id == "resume" && !creations.empty() && gate.state == MUSE_IDLE && !plan_active &&
+                view.screen == muse::Screen::home) {
+              const auto &c = creations.front();  // newest session
+              const std::string label = c.name.empty() ? std::string("your idea") : c.name;
+              if ((c.state == "building" || c.state == "fixing") && !muse_resume_build(&gate, c.job_id.c_str())) {
+                resumed_build = true;
+                view.screen = muse::Screen::working;
+                view.detail = "Picking up where you left off: " + label + ".";
+                view.status = c.detail;
+                build_started = view.seconds;
+                poll_at = view.seconds;
+              } else if (c.state == "planning") {
+                muse_plan p{};
+                snprintf(p.id, sizeof p.id, "%s", c.plan_id.c_str());
+                snprintf(p.transcript, sizeof p.transcript, "%s", c.transcript.c_str());
+                snprintf(p.detail, sizeof p.detail, "%s", c.detail.c_str());
+                wait_plan(p);
+              } else if (c.state == "plan ready" && !c.revision.empty() && std::time(nullptr) - c.created < 2 * 3600) {
+                muse_plan p{};
+                snprintf(p.id, sizeof p.id, "%s", c.plan_id.c_str());
+                snprintf(p.revision, sizeof p.revision, "%s", c.revision.c_str());
+                snprintf(p.text, sizeof p.text, "%s", c.plan_text.c_str());
+                show_plan(p);
+              }
+            }
             if (view.screen == muse::Screen::creations && !folder_install)
               view.status = creations.empty() ? "Nothing yet. Press L1 and make your first idea."
                                               : std::to_string(creations.size()) + " creations. Updated just now.";
@@ -556,12 +584,24 @@ int main() {
         } else if (res.work.type == muse::Task::creation_install) {
           install_active = folder_install = false;
           view.progress = -1;
-          if (res.rc) view.status = "Install failed: " + res.error;
-          else {
-            view.status = std::string("Installed ") + res.work.manifest.folder_name + ". Open it from your PS5 home screen.";
-            pad.rumble(.3f, .18f);
+          if (resumed_build) {
+            resumed_build = false;
+            muse_reset(&gate);
+            if (res.rc) fail("Install failed: " + res.error + ". Press R1 to retry from Creations.");
+            else {
+              view.screen = muse::Screen::home;
+              view.detail = std::string("Installed ") + res.work.manifest.folder_name + ". Open it from your PS5 home screen.";
+              view.status = "Ready for your next idea.";
+              pad.rumble(.3f, .18f);
+            }
+          } else {
+            if (res.rc) view.status = "Install failed: " + res.error;
+            else {
+              view.status = std::string("Installed ") + res.work.manifest.folder_name + ". Open it from your PS5 home screen.";
+              pad.rumble(.3f, .18f);
+            }
+            creations_refresh_at = view.seconds;
           }
-          creations_refresh_at = view.seconds;
         } else if (res.work.type == muse::Task::configure) {
           if (res.configuration_applied) {
             cfg=res.work.configuration; configured=true; sync_mode();
@@ -718,7 +758,18 @@ int main() {
               break;
             case muse::Task::poll:
               if (!strcmp(res.status.state, "done")) {
-                if (muse_build_done(&gate, res.work.generation, gate.job_id) ==
+                if (resumed_build && muse_build_done(&gate, res.work.generation, gate.job_id) == 0) {
+                  // Resumed after reopening: install through the verified folder path.
+                  muse::Work w;
+                  w.type = muse::Task::creation_install;
+                  w.generation = gate.generation;
+                  w.id = gate.job_id;
+                  if (worker.submit(w)) {
+                    install_active = folder_install = true;
+                    view.progress = 0;
+                    view.detail = "Built. Installing it on your console.";
+                  } else fail("Install could not be queued; press R1 and install it from Creations.");
+                } else if (muse_build_done(&gate, res.work.generation, gate.job_id) ==
                     0) {
                   muse::Work w;
                   w.type = muse::Task::download;
@@ -887,6 +938,9 @@ int main() {
         session_flush = false;
     } else if (plan_recovery && !view.local && !view.busy) {
       if (send(muse::Task::plan_recover)) plan_recovery=false;
+    } else if (resume_pending && !view.local && !view.busy && gate.state == MUSE_IDLE) {
+      muse::Work w; w.type=muse::Task::creations_list; w.generation=gate.generation; w.id="resume";
+      if (worker.submit(w)) resume_pending=false;
     } else if (plan_active && !view.busy && view.seconds >= plan_poll_at) {
       if (view.seconds - plan_wait_started >= 1800) {
         fail("Muse has not returned a plan within 30 minutes. The request ID is saved; reopen MuseStation to resume checking. No build was approved.");

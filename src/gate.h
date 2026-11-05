@@ -35,6 +35,7 @@ int muse_voice_utterance(struct muse_gate *g, uint64_t generation,
                          const char *intent, const char *utterance);
 /* Every async result is bound to the generation captured when it was sent. */
 int muse_job(struct muse_gate *g, uint64_t generation, const char *job);
+int muse_resume_build(struct muse_gate *g, const char *job);
 int muse_build_done(struct muse_gate *g, uint64_t generation, const char *job);
 int muse_artifact_verified(struct muse_gate *g, uint64_t generation);
 int muse_dispatch(struct muse_gate *g);

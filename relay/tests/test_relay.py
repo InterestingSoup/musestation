@@ -460,12 +460,15 @@ class StoreCase(unittest.TestCase):
         self.approved()
         path = self.store.path / "title-ledger.json"
         original = path.read_bytes()
-        path.write_bytes(original.replace(b"Muse App", b"MUSE APP"))
+        ledger = json.loads(original)
+        ledger["entries"][0]["identity"]["name"] = ledger["entries"][0]["identity"]["name"].upper() + " X"
+        tampered = canonical(ledger) + b"\n" if original.endswith(b"\n") else canonical(ledger)
+        path.write_bytes(tampered)
         with self.assertRaises(RelayError):
             self.store.reserve_identity("j" + "4" * 32, inventory())
         with self.assertRaises(RelayError):
             Store(self.store.path)
-        self.assertEqual(path.read_bytes(), original.replace(b"Muse App", b"MUSE APP"))
+        self.assertEqual(path.read_bytes(), tampered)
         path.write_bytes(original)
         with self.store.db(True) as db:
             identity = json.loads(db.execute("SELECT identity_json FROM jobs").fetchone()[0])

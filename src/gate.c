@@ -112,6 +112,13 @@ int muse_job(struct muse_gate *g, uint64_t generation, const char *job) {
     g->state = MUSE_BUILDING;
     return 0;
 }
+/* Reopening the app: follow a job the relay reports as still building. Only from idle. */
+int muse_resume_build(struct muse_gate *g, const char *job) {
+    if (g->state != MUSE_IDLE || !token(job)) return -1;
+    strcpy(g->job_id, job);
+    g->state = MUSE_BUILDING;
+    return 0;
+}
 int muse_build_done(struct muse_gate *g, uint64_t generation, const char *job) {
     if (generation != g->generation || g->state != MUSE_BUILDING ||
         !job || strcmp(g->job_id, job)) return -1;

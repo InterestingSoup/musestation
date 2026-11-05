@@ -130,6 +130,36 @@ def identifier(value, prefix=None):
     return value
 
 
+APP_NOUNS = ("app", "game", "tool", "player", "timer", "counter", "quiz", "tracker", "planner", "puzzle", "toy",
+             "visualizer", "visualiser", "drum", "piano", "clock", "calculator", "story", "adventure", "simulator")
+
+
+def clean_name(value):
+    """Printable, single-line app name of at most 32 characters, or None."""
+    if not isinstance(value, str):
+        return None
+    value = " ".join("".join(ch for ch in value if ch.isprintable()).split()).strip(" .,:;-")
+    return value[:32].rstrip() or None
+
+
+def suggest_name(plan_text, transcript=""):
+    """Short title from the plan: the words leading up to its first app noun.
+
+    "A bright, fast-paced learning game for young kids..." -> "Fast-Paced Learning Game"."""
+    for source in (plan_text or "", transcript or ""):
+        words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]*", source.split(".")[0])
+        for i, word in enumerate(words):
+            if word.lower().rstrip("s") in APP_NOUNS:
+                start = i
+                while start > 0 and i - start < 3 and words[start - 1].lower() not in (
+                        "a", "an", "the", "that", "which", "with", "for", "of", "and", "is", "build", "make", "me", "you", "can", "please"):
+                    start -= 1
+                name = " ".join(w if w.isupper() else "-".join(x[:1].upper() + x[1:] for x in w.split("-")) for w in words[start:i + 1])
+                if name:
+                    return clean_name(name)
+    return None
+
+
 def source_manifest(value):
     fields(value, ("schema", "type", "job_id", "approved_revision", "language", "files"), ("images", "sounds"))
     if type(value["schema"]) is not int or value["schema"] != 1 or value["type"] != "source" or value["language"] != "cpp":
@@ -310,6 +340,8 @@ class Store:
             job_columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
             if "inventory_json" not in job_columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN inventory_json TEXT")
+            if "name" not in columns:
+                db.execute("ALTER TABLE requests ADD COLUMN name TEXT")
             if "attempt" not in job_columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN attempt INTEGER NOT NULL DEFAULT 1")
         try:
@@ -430,7 +462,7 @@ class Store:
             if changed:
                 self.write_title_ledger(entries)
 
-    def reserve_identity(self, job_id, inventory):
+    def reserve_identity(self, job_id, inventory, name=None):
         identifier(job_id, "j")
         snapshot = console_inventory(inventory)
         with self.ledger_lock():
@@ -443,7 +475,7 @@ class Store:
             if title is None:
                 raise RelayError(507, "No unused homebrew title identities remain")
             identity = {"title_id": title, "content_id": f"IV0000-{title}_00-MUSE{uuid.uuid4().hex[:12].upper()}",
-                        "name": f"Muse App {title[-3:]}", "version": "01.000.000"}
+                        "name": clean_name(name) or f"Muse App {title[-3:]}", "version": "01.000.000"}
             entries.append({"job_id": job_id, "identity": identity})
             # A failed later SQLite commit burns this reservation intentionally.
             # Neither DB deletion nor retry may recycle an installed title ID.
@@ -562,7 +594,8 @@ class Store:
             requests = db.execute("SELECT * FROM requests ORDER BY created DESC LIMIT ?", (max(1, min(limit, 50)),)).fetchall()
             for request in requests:
                 job = db.execute("SELECT * FROM jobs WHERE plan_id=? ORDER BY created DESC LIMIT 1", (request["id"],)).fetchone()
-                title, name, detail = "", "", request["detail"] or ""
+                title, detail = "", request["detail"] or ""
+                name = (request["name"] if "name" in request.keys() else None) or ""
                 if job is not None:
                     identity = json.loads(job["identity_json"])
                     title, name = identity.get("title_id", ""), identity.get("name", "")
@@ -606,7 +639,7 @@ class Store:
 
     def ingest_plan(self, value):
         failure = value.get("type") == "plan_error" if isinstance(value, dict) else False
-        fields(value, ("schema", "type", "request_id", "detail" if failure else "text"))
+        fields(value, ("schema", "type", "request_id", "detail" if failure else "text"), () if failure else ("name",))
         if type(value["schema"]) is not int or value["schema"] != 1 or value["type"] not in ("plan", "plan_error"):
             raise RelayError(400, "Expected schema-1 plan or plan_error")
         id = identifier(value["request_id"], "p")
@@ -620,9 +653,10 @@ class Store:
             else:
                 revision = hashlib.sha256(canonical({"request_id": id, "transcript": row["transcript"],
                     "parent_plan_id": row["parent_id"], "parent_revision": row["parent_revision"], "text": content})).hexdigest()
-                db.execute("UPDATE requests SET state=?,text=?,revision=?,response_sha=?,detail=? WHERE id=?",
+                db.execute("UPDATE requests SET state=?,text=?,revision=?,response_sha=?,detail=?,name=? WHERE id=?",
                            ("error" if failure else "ready", None if failure else content,
-                            None if failure else revision, digest, content if failure else None, id))
+                            None if failure else revision, digest, content if failure else None,
+                            None if failure else (clean_name(value.get("name")) or suggest_name(content, row["transcript"])), id))
         return {"accepted": True, "request_id": id}
 
     def approve(self, id, value):
@@ -650,7 +684,8 @@ class Store:
             if db.execute("SELECT count(*) FROM jobs").fetchone()[0] >= self.limits[1]:
                 raise RelayError(507, "Build quota reached; operator archival is required")
             job = "j" + uuid.uuid4().hex
-            identity = self.reserve_identity(job, inventory)
+            name = (plan["name"] if "name" in plan.keys() else None) or suggest_name(plan["text"], plan["transcript"])
+            identity = self.reserve_identity(job, inventory, name)
             db.execute("INSERT INTO jobs(id,plan_id,revision,idem,state,detail,identity_json,created,inventory_json) VALUES(?,?,?,?,'awaiting_source',?,?,?,?)",
                        (job, id, revision, idem, "Approved. Muse is writing the code (usually 2 to 5 minutes)", canonical(identity).decode(), time.time(), canonical(inventory).decode()))
             self.event(db, "approved_job", {"schema": 1, "type": "approved_job", "job_id": job,

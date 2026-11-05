@@ -6,6 +6,14 @@ native kit. The relay checks the rules marked **[gate]** before compiling; a
 violation fails the build with a fix hint, and you may resubmit corrected
 source for the same job (see [Automatic fixes](#automatic-fixes)).
 
+## Name the app in your plan
+
+When you POST a plan to `/provider/plans`, add a short app name:
+`{"schema": 1, "type": "plan", "request_id": "…", "text": "…", "name": "Button Buddies"}`.
+At most 32 characters; it becomes the title on the PS5 home screen and in
+MuseStation's Creations tab. Without it the relay derives one from the plan
+text ("A bright learning game…" → "Bright Learning Game").
+
 ## What works
 
 - One C++20 program: `main.cpp` plus optional `include/*.h|.hpp`, built
