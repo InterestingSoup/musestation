@@ -552,10 +552,10 @@ static int mkdirs(const char *path){
     return ensure_dir(buf);
 }
 static int remove_tree(const char *path,int depth){
-    /* The PS5 title sandbox answers lstat() on a missing path with EPERM/EACCES,
+    /* The PS5 title sandbox answers stat() on a missing path with EPERM/EACCES,
      * not ENOENT (FW 12.40): treat that as nothing to remove. A real permission
      * problem shows up at the following mkdir() with its own reason. */
-    struct stat st;if(lstat(path,&st))return (errno==ENOENT||errno==EPERM||errno==EACCES)?0:-1;
+    struct stat st;if(stat(path,&st))return (errno==ENOENT||errno==EPERM||errno==EACCES)?0:-1;
     if(!S_ISDIR(st.st_mode))return unlink(path);
     if(depth>16)return -1;
     DIR *d=opendir(path);if(!d)return -1;struct dirent *e;int bad=0;
@@ -587,7 +587,15 @@ static int muse_client_install_folder_inner(struct muse_client *c,const char *jo
     char hex[65];muse_sha256_hex(list,list_len,hex);
     if(strcmp(hex,m->folder_sha256)){free(list);return fail(c,"Folder file list does not match the verified build manifest");}
     char dest[512],stage[600],old[600];
-    snprintf(dest,sizeof dest,"%s/%s",root,m->title_id);snprintf(stage,sizeof stage,"%s.muse-part",dest);snprintf(old,sizeof old,"%s.muse-old",dest);
+    snprintf(dest,sizeof dest,"%s/%s",root,m->title_id);
+    /* A unique staging folder per attempt, so a leftover can never block a retry. */
+    snprintf(stage,sizeof stage,"%s.muse-part-%lld",dest,(long long)time(NULL));snprintf(old,sizeof old,"%s.muse-old",dest);
+    { /* best effort: clear staging folders left by earlier interrupted attempts */
+        char prefix[64];int pl=snprintf(prefix,sizeof prefix,"%s.muse-part",m->title_id);
+        DIR *d=opendir(root);struct dirent *e;
+        while(d&&(e=readdir(d))){if(pl>0&&!strncmp(e->d_name,prefix,(size_t)pl)){char p[1024];snprintf(p,sizeof p,"%s/%s",root,e->d_name);(void)remove_tree(p,0);}}
+        if(d)closedir(d);
+    }
     const char *step=mkdirs(root)?"create":remove_tree(stage,0)?"clear":mkdir(stage,0777)?"stage":NULL;
     if(step){int e=errno;free(list);snprintf(c->error,sizeof c->error,"Cannot prepare the homebrew folder on this console (%s %s: %s)",
         step,!strcmp(step,"create")?root:stage,strerror(e));return -1;}
@@ -617,7 +625,7 @@ static int muse_client_install_folder_inner(struct muse_client *c,const char *jo
     if(progress)progress(context,done,m->folder_size,"Moving the new version into place");
     char final_dir[620];snprintf(final_dir,sizeof final_dir,"%s/%s.%.8s",root,m->title_id,job+1);
     struct stat st;
-    if(!lstat(final_dir,&st)&&S_ISDIR(st.st_mode))(void)remove_tree(stage,0); /* same build already there */
+    if(!stat(final_dir,&st)&&S_ISDIR(st.st_mode))(void)remove_tree(stage,0); /* same build already there */
     else if(rename(stage,final_dir)){
         int e=errno;(void)remove_tree(stage,0);
         snprintf(c->error,sizeof c->error,"Cannot move the app into %s (%s)",final_dir,strerror(e));return -1;
