@@ -1037,7 +1037,7 @@ int main() {
         }
       }
       if (input.is_pressed(Action::back) && configured) view.screen=muse::Screen::home;
-      if (input.is_pressed(Action::east) && !view.busy) {
+      if (input.is_pressed(Action::north) && !view.busy) {
         view.screen=muse::Screen::update;
         view.status="Press X to download and install the latest MuseStation update from your relay.";
         view.error.clear();
