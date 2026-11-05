@@ -1279,25 +1279,10 @@ void Worker::loop() {
         fclose(sf);
         free(eboot_bytes);
         if (!wrote) { r.rc = -1; r.error = "Staging write incomplete"; break; }
-        // 4. Uninstall from ShadowMount so eboot.bin is no longer locked.
-        char sm_body[64]; int sm_len = snprintf(sm_body, sizeof sm_body, "{\"title_id\":\"PPSA99576\"}");
-        unsigned char *sm_resp = nullptr; size_t sm_resp_len = 0;
-        int sm_rc = muse_client_http(&client, client.config.shadowmount_url, "POST",
-                                     "/api/v1/packages/uninstall",
-                                     "application/json", sm_body, (size_t)sm_len,
-                                     4096, &sm_resp, &sm_resp_len);
-        free(sm_resp);
-        if (sm_rc) {
-          muse_log_event(&journal, "warn", "self_update_uninstall_warn",
-                         "ShadowMount uninstall returned error; proceeding anyway");
-        } else {
-          // Brief pause so the unmount completes before we write.
-          struct timespec ts = {1, 0}; nanosleep(&ts, nullptr);
-        }
-        // 5. Copy staged eboot to the live path.
+        // 4. Write new eboot over the live path while the directory still exists.
+        // (Uninstalling ShadowMount first deletes the directory, making the write
+        //  impossible. Instead write first, then scan to re-register.)
         const char *live = "/data/homebrew/PPSA99576/eboot.bin";
-        // ShadowMount uninstall may have removed the directory; recreate it.
-        mkdir("/data/homebrew/PPSA99576", 0755);
         FILE *src = fopen(staging, "rb");
         FILE *dst = fopen(live, "wb");
         bool copy_ok = false;
@@ -1313,7 +1298,7 @@ void Worker::loop() {
         if (dst) fclose(dst);
         if (!copy_ok) { r.rc = -1; r.error = "Failed to write new eboot to /data/homebrew/PPSA99576/"; break; }
         unlink(staging);
-        // 6. Trigger a ShadowMount scan to re-register.
+        // 5. Trigger a ShadowMount scan to re-register.
         unsigned char *scan_resp = nullptr; size_t scan_len = 0;
         (void)muse_client_http(&client, client.config.shadowmount_url, "POST", "/api/v1/scan",
                                "application/json", "{\"reset_attempts\":true}", 23,
