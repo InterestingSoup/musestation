@@ -552,7 +552,10 @@ static int mkdirs(const char *path){
     return ensure_dir(buf);
 }
 static int remove_tree(const char *path,int depth){
-    struct stat st;if(lstat(path,&st))return errno==ENOENT?0:-1;
+    /* The PS5 title sandbox answers lstat() on a missing path with EPERM/EACCES,
+     * not ENOENT (FW 12.40): treat that as nothing to remove. A real permission
+     * problem shows up at the following mkdir() with its own reason. */
+    struct stat st;if(lstat(path,&st))return (errno==ENOENT||errno==EPERM||errno==EACCES)?0:-1;
     if(!S_ISDIR(st.st_mode))return unlink(path);
     if(depth>16)return -1;
     DIR *d=opendir(path);if(!d)return -1;struct dirent *e;int bad=0;
