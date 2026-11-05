@@ -1245,13 +1245,12 @@ void Worker::loop() {
         r.rc = muse_log_flush(&journal);
         break;
       case Task::self_update: {
-        // 1. Ask relay for the new eboot info.
+        // 1. Ask relay for the new eboot version info.
         unsigned char *info_resp = nullptr; size_t info_len = 0;
         r.rc = muse_client_http(&client, client.config.server_url, "GET", "/system/update/info",
                                 "application/json", nullptr, 0, 4096, &info_resp, &info_len);
         if (!r.rc && client.http_status != 200) r.rc = -1;
         if (r.rc) { r.error = client.error[0] ? client.error : "Could not reach relay update endpoint"; free(info_resp); break; }
-        // 2. Check the version tag so we don't re-install the same build.
         std::string version_tag;
         if (info_resp) {
           const char *vp = strstr(reinterpret_cast<char *>(info_resp), "\"version\":");
@@ -1261,59 +1260,18 @@ void Worker::loop() {
           }
         }
         free(info_resp);
-        // 3. Download the new eboot from relay to a staging path.
-        const char *staging = "/data/musestation/eboot-pending.bin";
-        unsigned char *eboot_bytes = nullptr; size_t eboot_len = 0;
-        r.rc = muse_client_http(&client, client.config.server_url, "GET", "/system/update/eboot",
-                                "application/octet-stream", nullptr, 0,
-                                128 * 1024 * 1024, &eboot_bytes, &eboot_len);
-        if (!r.rc && client.http_status != 200) r.rc = -1;
-        if (r.rc) { r.error = client.error[0] ? client.error : "Eboot download failed"; free(eboot_bytes); break; }
-        if (!eboot_bytes || eboot_len < 0x10000) {
-          r.rc = -1; r.error = "Downloaded eboot is too small"; free(eboot_bytes); break;
-        }
-        // Write staging file.
-        FILE *sf = fopen(staging, "wb");
-        if (!sf) { r.rc = -1; r.error = "Cannot write staging eboot"; free(eboot_bytes); break; }
-        bool wrote = fwrite(eboot_bytes, 1, eboot_len, sf) == eboot_len;
-        fclose(sf);
-        free(eboot_bytes);
-        if (!wrote) { r.rc = -1; r.error = "Staging write incomplete"; break; }
-        // 4. Write new eboot over the live path while the directory still exists.
-        const char *live = "/data/homebrew/PPSA99576/eboot.bin";
-        // The installed eboot may be read-only; unlink it so we can create a
-        // fresh file (we only need directory write permission, not file write).
-        unlink(live);
-        FILE *src = fopen(staging, "rb");
-        FILE *dst = fopen(live, "wb");
-        bool copy_ok = false;
-        if (src && dst) {
-          char buf[65536]; size_t n;
-          copy_ok = true;
-          while ((n = fread(buf, 1, sizeof buf, src)) > 0) {
-            if (fwrite(buf, 1, n, dst) != n) { copy_ok = false; break; }
-          }
-          if (ferror(src)) copy_ok = false;
-        }
-        if (src) fclose(src);
-        if (dst) fclose(dst);
-        if (!copy_ok) {
-          r.rc = -1;
-          char ebuf[256]; int en = errno;
-          snprintf(ebuf, sizeof ebuf, "eboot write failed (errno %d): src=%s dst=%s",
-                   en, src ? "ok" : "null", dst ? "ok" : "null");
-          r.error = ebuf;
-          break;
-        }
-        unlink(staging);
-        // 5. Trigger a ShadowMount scan to re-register.
-        unsigned char *scan_resp = nullptr; size_t scan_len = 0;
-        (void)muse_client_http(&client, client.config.shadowmount_url, "POST", "/api/v1/scan",
-                               "application/json", "{\"reset_attempts\":true}", 23,
-                               4096, &scan_resp, &scan_len);
-        free(scan_resp);
+        // 2. Tell the relay to FTP the new eboot after we quit.
+        // The app is a running executable so it cannot be overwritten while
+        // it is loaded (ETXTBSY). The relay waits 10 s after this call, then
+        // FTPs the eboot directly to /data/homebrew/PPSA99576/eboot.bin and
+        // triggers a ShadowMount scan. The console simply quits after this.
+        unsigned char *apply_resp = nullptr; size_t apply_len = 0;
+        r.rc = muse_client_http(&client, client.config.server_url, "POST", "/system/update/apply",
+                                "application/json", "{}", 2, 4096, &apply_resp, &apply_len);
+        free(apply_resp);
+        if (r.rc) { r.error = "Relay could not queue the update — check relay logs"; break; }
         r.rc = 0;
-        muse_log_event(&journal, "info", "self_update_complete", version_tag.empty() ? "done" : version_tag.c_str());
+        muse_log_event(&journal, "info", "self_update_queued", version_tag.empty() ? "done" : version_tag.c_str());
         r.error.clear();
         break;
       }
