@@ -66,6 +66,8 @@ class Application:
         self.console_token = console_token
         self.pending_setup_config = None
         self._setup_lock = threading.Lock()
+        self._phone_prompt = None
+        self._phone_lock = threading.Lock()
 
     def health(self):
         return {"schema": 1, "service": "muse-build-relay", "state": "degraded" if self.exchange.last_error else "ready",
@@ -183,8 +185,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.close_connection = True
                     return
                 raise RelayError(404, "Unknown provider resource")
-            if not (method == "GET" and path.path in ("/", "/health", "/setup-config", "/setup") and not path.query) and \
-               not (method == "POST" and path.path == "/setup" and not path.query):
+            if not (method == "GET" and path.path in ("/", "/health", "/setup-config", "/setup", "/phone") and not path.query) and \
+               not (method == "POST" and path.path in ("/setup", "/phone") and not path.query):
                 self.authenticate()
             if path.query:
                 raise RelayError(400, "Unexpected query parameters")
@@ -269,6 +271,79 @@ document.getElementById('f').onsubmit=async e=>{{
                 with app._setup_lock:
                     app.pending_setup_config = config
                 return self.reply(200, {"ok": True})
+            if method == "GET" and path.path == "/phone":
+                host = self.headers.get("Host") or "192.168.5.54:8860"
+                html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MuseStation</title>
+<style>
+body{{font-family:sans-serif;max-width:480px;margin:32px auto;padding:0 16px;background:#0e1a1c;color:#e0f0f0}}
+h1{{font-size:1.3rem;color:#5af0d0;margin-bottom:4px}}
+p{{color:#8aaab0;font-size:.9rem;margin:0 0 20px}}
+textarea{{width:100%;box-sizing:border-box;padding:10px;background:#1a2d30;border:1px solid #2a4040;border-radius:8px;color:#e0f0f0;font-size:1rem;height:120px;resize:vertical}}
+textarea:focus{{outline:none;border-color:#5af0d0}}
+button{{margin-top:16px;width:100%;padding:14px;background:#5af0d0;color:#0e1a1c;border:none;border-radius:10px;font-size:1.1rem;font-weight:700;cursor:pointer}}
+button:active{{background:#3ad0b0}}
+.ok{{display:none;color:#5af0d0;text-align:center;font-size:1.2rem;margin-top:24px;padding:20px;background:#0e2820;border-radius:12px}}
+</style></head>
+<body>
+<h1>MuseStation</h1>
+<p>Describe the app or game you want Muse to build on your PS5.</p>
+<textarea id="t" placeholder="A puzzle game where Cross rotates pieces and Circle undoes the last move..."></textarea>
+<button id="b" onclick="send()">Send to PS5</button>
+<div class="ok" id="ok">Sent! Your PS5 will start planning it now.</div>
+<script>
+async function send(){{
+  const t=document.getElementById('t').value.trim();
+  if(!t)return;
+  document.getElementById('b').disabled=true;
+  document.getElementById('b').textContent='Sending...';
+  await fetch('/phone',{{method:'POST',headers:{{'Content-Type':'text/plain'}},body:t}});
+  document.getElementById('b').style.display='none';
+  document.getElementById('ok').style.display='block';
+}}
+</script>
+</body></html>"""
+                raw = html.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(raw)
+                self.close_connection = True
+                return
+            if method == "POST" and path.path == "/phone":
+                raw_body = self.body(4096)
+                text = raw_body.decode("utf-8", errors="replace").strip()
+                if text:
+                    with app._phone_lock:
+                        app._phone_prompt = text
+                return self.reply(200, {"ok": True})
+            if method == "GET" and path.path == "/phone/poll":
+                with app._phone_lock:
+                    text = app._phone_prompt
+                    app._phone_prompt = None
+                if text:
+                    raw = text.encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.write(raw)
+                    self.close_connection = True
+                    return
+                self.send_response(204)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                self.close_connection = True
+                return
             if method == "POST" and path.path == "/voice":
                 return self.reply(200, app.store.submit(self.json_body(65536)))
             match = re.fullmatch(r"/plan/(p[0-9a-f]{32})(/approve)?", path.path)

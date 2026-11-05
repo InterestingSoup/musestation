@@ -61,11 +61,11 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
   d.line(120, 91, 132, 79, 3, gfx::Color::rgb(0x102d30));
   d.line(132, 79, 132, 99, 3, gfx::Color::rgb(0x102d30));
   label(d, f.semibold, "MuseStation", 160, 103, 40, white);
-  const bool tabbed = v.screen == Screen::home || v.screen == Screen::creations || v.screen == Screen::library || v.screen == Screen::modes;
+  const bool tabbed = v.screen != Screen::setup && v.screen != Screen::request && v.screen != Screen::model_url && v.screen != Screen::diagnostics && v.screen != Screen::connections && v.screen != Screen::models && v.screen != Screen::update && v.screen != Screen::project;
   if (tabbed) {
     // Top tabs switched with L1 / R1.
     const char *names[3] = {"Create", v.local ? "Library" : "Creations", "Settings"};
-    const int tab_idx = v.screen == Screen::home ? 0 : v.screen == Screen::modes ? 2 : 1;
+    const int tab_idx = v.screen == Screen::modes ? 2 : (v.screen == Screen::creations || v.screen == Screen::library) ? 1 : 0;
     label(d, f.semibold, "L1", 470, 98, 20, muted);
     float x = 510;
     for (int i = 0; i < 3; ++i) {
@@ -335,6 +335,23 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
           v.connected ? "Controller connected" : "Connect your DualSense", 1256,
           785, 24, v.connected ? mint : muted);
     label(d, f.regular, v.local ? "Logs stay on this console" : "Logs upload automatically", 1256, 829, 23, muted);
+    if (!v.phone_form_url.empty() && !v.recording && !v.busy) {
+      uint8_t qr[qrcodegen_BUFFER_LEN_MAX];
+      uint8_t tmp[qrcodegen_BUFFER_LEN_MAX];
+      if (qrcodegen_encodeText(v.phone_form_url.c_str(), tmp, qr, qrcodegen_Ecc_LOW,
+                               qrcodegen_VERSION_MIN, 10, qrcodegen_Mask_AUTO, true)) {
+        int sz = qrcodegen_getSize(qr);
+        float cell = std::floor(108.f / float(sz + 8));
+        float box = cell * float(sz + 8), bx = 1824.f - box, by = 860.f;
+        d.rounded_rect({bx - 4, by - 4, box + 8, box + 8}, 8, white);
+        float qx = bx + 4 * cell, qy = by + 4 * cell;
+        for (int row = 0; row < sz; ++row)
+          for (int col = 0; col < sz; ++col)
+            if (qrcodegen_getModule(qr, col, row))
+              d.rounded_rect({qx + col * cell, qy + row * cell, cell, cell}, 0, gfx::Color::rgb(0x000000));
+        label(d, f.regular, "Type from phone", bx - 4, by + box + 16, 18, muted);
+      }
+    }
     if (!v.job_budget.empty()) label(d,f.mono,f.mono.font->fit(v.job_budget,21,1015),132,897,21,muted);
   }
   d.line(96, 995, 1824, 995, 1, muted.with_alpha(.25f));

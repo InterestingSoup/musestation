@@ -221,7 +221,7 @@ int main() {
   bool worker_started = false, exit_pending = false, quit_after_flush = false,
        session_flush = false, need_init = false;
   double poll_at = 0, install_poll_at = 0, log_retry_at = 30, quit_after_install = 0, force_quit_at = 0;
-  double plan_poll_at = 0, plan_wait_started = 0;
+  double plan_poll_at = 0, plan_wait_started = 0, phone_poll_at = 0;
   bool plan_active = false, plan_recovery = false;
   std::string waiting_plan;
   bool install_active = false, install_launch_queued = false;
@@ -243,6 +243,8 @@ int main() {
     view.local = muse_config_local(&cfg);
     view.provider = !strcmp(cfg.hybrid_provider, "codex") ? "Codex" : "Muse";
     view.server = cfg.server_url;
+    view.phone_form_url = (!muse_config_local(&cfg) && cfg.server_url[0])
+                          ? std::string(cfg.server_url) + "/phone" : "";
   };
   sync_mode();
   auto home_detail = [&]() {
@@ -688,6 +690,8 @@ int main() {
             if (!plan_active) wait_plan(res.plan);
             plan_poll_at = view.seconds + 5;
             view.status = "Relay unavailable. Retrying the saved request; no approval was sent.";
+          } else if (res.rc < 0 && res.work.type == muse::Task::phone_poll) {
+            phone_poll_at = view.seconds + 10;
           } else if (res.rc < 0)
             fail(res.error);
           else
@@ -905,6 +909,16 @@ int main() {
               muse_reset(&gate);
               pad.rumble(.3f, .18f);
               break;
+            case muse::Task::phone_poll:
+              if (res.rc == 0 && !res.transcript.empty()) {
+                muse::Work tw; tw.type = muse::Task::transcript;
+                tw.text = res.transcript; tw.generation = gate.generation;
+                if (worker.submit(tw)) {
+                  view.screen = muse::Screen::home;
+                  view.detail = "Request received from phone. Connecting to Muse.";
+                }
+              }
+              break;
             default:
               break;
             }
@@ -979,6 +993,11 @@ int main() {
     } else if (install_active && !folder_install && !view.busy && view.seconds >= install_poll_at) {
       if (!send(muse::Task::install_poll))
         fail("Install monitoring could not be queued. An accepted installation may continue.");
+    } else if (!view.local && configured && !view.busy && !plan_active &&
+               gate.state == MUSE_IDLE && view.screen == muse::Screen::home &&
+               view.seconds >= phone_poll_at) {
+      muse::Work w; w.type = muse::Task::phone_poll; w.generation = gate.generation;
+      if (worker.submit(w)) phone_poll_at = view.seconds + 5;
     } else if (view.screen == muse::Screen::creations && !view.busy && !install_active &&
                view.seconds >= creations_refresh_at) {
       muse::Work w;
@@ -1297,7 +1316,7 @@ int main() {
           view.page = std::max(0, view.page - 1);
         if (view.page == view.page_count - 1)
           plan_read = true;
-        if (!view.busy && plan_read &&
+        if (!view.busy && plan_read && view.page == view.page_count - 1 &&
             muse_pad(&gate, input.is_held(Action::confirm)) == 1) {
           if (view.local ? local_send(muse::Task::local_approve) : send(muse::Task::approve)) {
             view.screen = muse::Screen::working;

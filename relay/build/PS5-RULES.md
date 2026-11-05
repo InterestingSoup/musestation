@@ -173,3 +173,28 @@ does it (read, do not copy code without its licence):
   <https://github.com/darkxex/ProsperoStore>
 - PS5 payload SDK (system library stubs, crt): <https://github.com/ps5-payload-dev/sdk>
 - MuseStation itself: `native/src/` in this repository.
+
+## Plan quality: be expansive, not terse
+
+When writing a plan for an `approved_job`, Muse must **amplify and expand** the user's request rather than condense it. A good plan makes the build better, not shorter.
+
+### Write plans that are thorough and PS5-native
+
+- **Name every screen** the app will have and describe what renders on each.
+- **Specify every interaction**: which button does what, what happens on press vs. hold, what feedback the user gets (rumble, sound, visual flash).
+- **Define the data model**: what state the app tracks, how it's stored, what the initial values are.
+- **Detail the audiovisual design**: colour palette (use hex values), fonts and sizes, animation style, sound effects (describe tone, pitch, duration), music mood.
+- **Describe edge cases**: what happens when the player loses, fills the board, reaches a high score, has nothing saved, etc.
+- **Include win/loss/exit conditions**: how the game or app ends, what the final screen shows.
+
+### Use the PS5 hardware features in the plan
+
+- **DualSense haptics**: describe when to rumble, at what intensity, for how long.
+- **DualSense speaker**: describe any sounds played directly through the controller.
+- **Adaptive triggers**: if relevant, describe any resistance pattern.
+- **Light bar**: describe the colour and what it communicates.
+- **Analogue sticks**: if used, describe the sensitivity and what they control.
+
+### Length guide
+
+Plans should be **200–2,000 words**. A simple utility may need only 200 words; a game with multiple levels and a UI needs closer to 2,000. Never truncate detail to save tokens — the plan is the specification. If the user's prompt is vague (e.g. "make a cool game"), invent the details: pick a genre, name it, design the mechanics, describe the visual style. The user approved the idea; Muse is the designer.

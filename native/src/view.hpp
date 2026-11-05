@@ -25,6 +25,7 @@ struct View {
        connection_muse = true, model_ready = false, downloading_model = false,
        caps = false;
   std::string qr_url;
+  std::string phone_form_url;
   int tab = 0;  // top tabs: 0 Create, 1 Creations (Hybrid) / Library (Local)
   float seconds = 0, fps = 0, meter = 0;
 };

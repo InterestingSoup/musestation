@@ -49,6 +49,7 @@ enum class Task {
   notice_seen,
   notice_reply,
   self_update,
+  phone_poll,
   stop
 };
 struct Work {

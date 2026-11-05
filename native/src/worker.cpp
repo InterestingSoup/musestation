@@ -1322,6 +1322,19 @@ void Worker::loop() {
         r.error.clear();
         break;
       }
+      case Task::phone_poll: {
+        unsigned char *body = nullptr;
+        size_t length = 0;
+        r.rc = muse_client_http(&client, client.config.server_url, "GET", "/phone/poll",
+                                "text/plain", nullptr, 0, 4096, &body, &length);
+        if (r.rc == 0 && body && length > 0) {
+          r.transcript = std::string(reinterpret_cast<char *>(body), length);
+        } else if (r.rc >= 0) {
+          r.rc = MUSE_CLIENT_PENDING;
+        }
+        if (body) free(body);
+        break;
+      }
       case Task::stop:
         if (projects_open) {
           if (current_job.id[0] && current_job.state == MUSE_LOCAL_QUEUED)
