@@ -292,7 +292,7 @@ void installed_marker(const char *artifact_dir, const std::string &job) {
   FILE *f = std::fopen((dir + "/" + job).c_str(), "wb");
   if (f) std::fclose(f);
 }
-// Muse-built apps live here (the sandbox cannot write ShadowMountPlus's /data/homebrew).
+// kAppsRoot kept for reference; relay installs directly to /data/homebrew/ via FTP.
 const char *const kAppsRoot = "/data/musestation/apps";
 void install_debug(const char *format, ...) {
   FILE *f = std::fopen("/data/muse-install-debug.log", "a");
@@ -303,6 +303,31 @@ void install_debug(const char *format, ...) {
   va_end(args);
   std::fputc('\n', f);
   std::fclose(f);
+}
+// After relay FTPs files to /data/homebrew/<TITLE>/, tell ShadowMount to scan and
+// wait until it reports the app as installed. Uses the local 127.0.0.1:10101 binding
+// that is only reachable from within the PS5 (not from the relay container).
+int relay_shadowmount_scan_poll(muse_client *c, muse_journal *j, const char *title_id) {
+  // Trigger scan.
+  unsigned char *sr = nullptr; size_t sr_len = 0;
+  (void)muse_client_http(c, c->config.shadowmount_url, "POST", "/api/v1/scan",
+                         "application/json", "{\"reset_attempts\":true}", 23,
+                         4096, &sr, &sr_len);
+  free(sr);
+  // Poll games/info until installed:true (up to 60 s, 2 s per attempt).
+  char body[64]; int body_len = snprintf(body, sizeof body, "{\"title_id\":\"%s\"}", title_id);
+  for (int i = 0; i < 30; i++) {
+    struct timespec ts = {2, 0}; nanosleep(&ts, nullptr);
+    unsigned char *ir = nullptr; size_t ir_len = 0;
+    if (!muse_client_http(c, c->config.shadowmount_url, "POST", "/api/v1/games/info",
+                          "application/json", body, (size_t)body_len, 65536, &ir, &ir_len) && ir) {
+      bool ok = strstr(reinterpret_cast<char *>(ir), "\"installed\":true") != nullptr;
+      free(ir);
+      if (ok) { c->error[0] = 0; muse_log_event(j, "info", "sm_registered", title_id); return 0; }
+    } else free(ir);
+  }
+  snprintf(c->error, sizeof c->error, "ShadowMount did not register %s in 60 s", title_id);
+  return -1;
 }
 void Worker::folder_progress(void *context, uint64_t done, uint64_t total, const char *stage) {
   auto *self = static_cast<Worker *>(context);
@@ -1012,9 +1037,9 @@ void Worker::loop() {
         break;
       }
       case Task::creation_install: {
-        // Install a finished creation from the Creations tab (any session, any time).
-        // The relay FTPs files directly to /data/homebrew/<TITLE>/ on the PS5 and
-        // triggers a ShadowMount scan — no in-title file writes, no game-switch risk.
+        // The relay FTPs files directly to /data/homebrew/<TITLE>/ (no sandbox write
+        // restrictions, no game-switch EBUSY). MuseStation then triggers ShadowMount
+        // scan + poll locally since ShadowMount only binds to 127.0.0.1 on the PS5.
         muse_build_status st{};
         r.rc = muse_client_status(&client, w.id.c_str(), &st);
         if (r.rc) {
@@ -1036,7 +1061,10 @@ void Worker::loop() {
                                   4096, &resp, &resp_len);
           free(resp);
           if (!r.rc && client.http_status != 200) r.rc = -1;
-          if (r.rc) r.error = client.error[0] ? client.error : "Relay install failed";
+          if (r.rc) { r.error = client.error[0] ? client.error : "Relay FTP install failed"; break; }
+          // Relay finished FTP. Now trigger ShadowMount scan + poll from here (local 127.0.0.1 access).
+          r.rc = relay_shadowmount_scan_poll(&client, &journal, st.title_id);
+          if (r.rc) r.error = client.error[0] ? client.error : "ShadowMount did not register the app";
           install_debug("creation_install %s %s: rc=%d error=%s", w.id.c_str(), st.title_id, r.rc, r.error.c_str());
           muse_log_event(&journal, r.rc ? "error" : "info", "creation_install",
                          r.rc ? r.error.c_str() : st.title_id);
@@ -1056,7 +1084,7 @@ void Worker::loop() {
         }
         muse_log_event(&journal, "info", "download", w.id.c_str());
         if (w.manifest.folder_sha256[0]) {
-          // Relay FTPs files to /data/homebrew/<TITLE>/ and triggers ShadowMount scan.
+          // Relay FTPs to /data/homebrew/<TITLE>/; MuseStation does scan+poll locally.
           unsigned char *resp = nullptr; size_t resp_len = 0;
           std::string ipath = std::string("/build/") + w.id + "/relay-install";
           r.rc = muse_client_http(&client, client.config.server_url, "POST",
@@ -1064,6 +1092,7 @@ void Worker::loop() {
                                   4096, &resp, &resp_len);
           free(resp);
           if (!r.rc && client.http_status != 200) r.rc = -1;
+          if (!r.rc) r.rc = relay_shadowmount_scan_poll(&client, &journal, w.manifest.title_id);
           if (r.rc) r.error = client.error[0] ? client.error : "Relay install failed";
           install_debug("relay_install %s %s: rc=%d error=%s", w.id.c_str(), w.manifest.title_id, r.rc, r.error.c_str());
           muse_log_event(&journal, r.rc ? "error" : "info", "relay_install",
