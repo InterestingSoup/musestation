@@ -1201,7 +1201,7 @@ int main() {
     } else {
       // Top tabs (L1/R1): Create → Creations → Settings.
       if (view.screen == muse::Screen::home && configured && !view.busy && !install_active && !plan_active &&
-          gate.state == MUSE_IDLE && input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
+          input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
         if (view.local) {
           local_run=false; library_pending=true; pending_speech.clear();
           worker.set_context("","",""); refining=false;
