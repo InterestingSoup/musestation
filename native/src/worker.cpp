@@ -1280,9 +1280,10 @@ void Worker::loop() {
         free(eboot_bytes);
         if (!wrote) { r.rc = -1; r.error = "Staging write incomplete"; break; }
         // 4. Write new eboot over the live path while the directory still exists.
-        // (Uninstalling ShadowMount first deletes the directory, making the write
-        //  impossible. Instead write first, then scan to re-register.)
         const char *live = "/data/homebrew/PPSA99576/eboot.bin";
+        // The installed eboot may be read-only; unlink it so we can create a
+        // fresh file (we only need directory write permission, not file write).
+        unlink(live);
         FILE *src = fopen(staging, "rb");
         FILE *dst = fopen(live, "wb");
         bool copy_ok = false;
@@ -1296,7 +1297,14 @@ void Worker::loop() {
         }
         if (src) fclose(src);
         if (dst) fclose(dst);
-        if (!copy_ok) { r.rc = -1; r.error = "Failed to write new eboot to /data/homebrew/PPSA99576/"; break; }
+        if (!copy_ok) {
+          r.rc = -1;
+          char ebuf[256]; int en = errno;
+          snprintf(ebuf, sizeof ebuf, "eboot write failed (errno %d): src=%s dst=%s",
+                   en, src ? "ok" : "null", dst ? "ok" : "null");
+          r.error = ebuf;
+          break;
+        }
         unlink(staging);
         // 5. Trigger a ShadowMount scan to re-register.
         unsigned char *scan_resp = nullptr; size_t scan_len = 0;
