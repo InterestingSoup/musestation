@@ -1095,6 +1095,10 @@ int main() {
       const int count = int(creations.size());
       if (input.nav==Direction::up) view.selection=std::max(0,view.selection-1);
       if (input.nav==Direction::down) view.selection=std::min(std::max(0,count-1),view.selection+1);
+      // R1 → Settings tab
+      if (!view.busy && !install_active && input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
+        view.screen=muse::Screen::modes; view.tab=2; view.selection=0;
+      }
       const bool tab_back = input.is_pressed(Action::page_prev) && !input.is_held(Action::page_next);
       if ((input.is_pressed(Action::back) || tab_back) && !install_active) {
         view.screen=muse::Screen::home; view.tab=0; view.detail=home_detail();
@@ -1135,12 +1139,16 @@ int main() {
         local_job=library[view.selection]; play_pending=false;
         if (!local_send(muse::Task::local_load)) fail("The project could not be opened.");
       }
+      // R1 → Settings tab
+      if (!view.busy && input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
+        view.screen=muse::Screen::modes; view.tab=2; view.selection=0;
+      }
       if (input.is_pressed(Action::back) ||
           (input.is_pressed(Action::page_prev) && !input.is_held(Action::page_next))) {
         view.screen=muse::Screen::home; view.tab=0; muse_reset(&gate);
         worker.set_context("","",""); refining=false;
       }
-      if (input.is_pressed(Action::menu) && !view.busy) modes();
+      if (view.seconds > 2.f && input.is_pressed(Action::menu) && !view.busy) { view.screen=muse::Screen::modes; view.tab=2; view.selection=0; }
     } else if (view.screen == muse::Screen::setup || view.screen==muse::Screen::request) {
       const bool typed=view.screen==muse::Screen::request;
       if(typed)view.secret_edit=false;
@@ -1171,7 +1179,7 @@ int main() {
           view.field=fields[setup_fields[view.field_index]];
           view.secret_edit=setup_fields[view.field_index]==5;
           view.key=0; view.caps=false;
-        } else modes();
+        } else { view.screen=muse::Screen::modes; view.tab=2; view.selection=0; }
       }
       if (input.is_pressed(Action::page_next) && !view.busy) {
         if (typed) {
@@ -1211,12 +1219,6 @@ int main() {
           view.status = "Loading your creations from the relay...";
           creations_refresh_at = view.seconds;
         }
-      }
-      // R1 from Creations → Settings tab.
-      if ((view.screen == muse::Screen::creations || view.screen == muse::Screen::library) &&
-          !view.busy && !install_active &&
-          input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
-        view.screen = muse::Screen::modes; view.tab = 2; view.selection = 0;
       }
       // Options from anywhere → Settings tab (ignore for first 2s to absorb launch-button state).
       if (view.seconds > 2.f && input.is_pressed(Action::menu) && !view.busy && !install_active && !local_run && !plan_active) {
