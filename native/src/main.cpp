@@ -303,7 +303,7 @@ int main() {
                 pending_config.build_mode, pending_config.hybrid_provider,
                 pending_config.relay_token[0] != 0);
   };
-  if (configured) initialize(); else modes();
+  if (configured) initialize(); else setup();
   auto fail = [&](const std::string &error) {
     install_active = false;
     folder_install = false;
@@ -1020,21 +1020,9 @@ int main() {
       if (input.nav==Direction::down) view.selection=std::min(3,view.selection+1);
       if (input.is_pressed(Action::confirm) && !view.busy) {
         switch (view.selection) {
-          case 0: // Mode toggle
-            if (!view.local) {
-              // Switch to local
-              pending_config=cfg;
-              snprintf(pending_config.build_mode,sizeof pending_config.build_mode,"local");
-              snprintf(pending_config.hybrid_provider,sizeof pending_config.hybrid_provider,"muse");
-              pending_config.phone_port=0;
-              open_model_setup=true;
-              if (!muse_config_validate(&pending_config,config_error,sizeof config_error)) apply_settings();
-              else setup();
-            } else {
-              // Switch to hybrid
-              view.connection_muse=true;
-              view.screen=muse::Screen::connections;
-            }
+          case 0: // Mode — open connections to change mode
+            view.connection_muse=!view.local;
+            view.screen=muse::Screen::connections;
             break;
           case 1: // Connections
             view.connection_muse=!view.local;
@@ -1230,8 +1218,8 @@ int main() {
           input.is_pressed(Action::page_next) && !input.is_held(Action::page_prev)) {
         view.screen = muse::Screen::modes; view.tab = 2; view.selection = 0;
       }
-      // Options from anywhere → Settings tab.
-      if (input.is_pressed(Action::menu) && !view.busy && !install_active && !local_run && !plan_active) {
+      // Options from anywhere → Settings tab (ignore for first 2s to absorb launch-button state).
+      if (view.seconds > 2.f && input.is_pressed(Action::menu) && !view.busy && !install_active && !local_run && !plan_active) {
         view.screen = muse::Screen::modes; view.tab = 2; view.selection = 0;
       }
       if (view.local && view.screen==muse::Screen::project && input.is_pressed(Action::west)) {

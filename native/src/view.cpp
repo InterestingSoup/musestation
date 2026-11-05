@@ -239,6 +239,31 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
     ui::paragraph(d,f.regular,v.connection_muse
       ?"Press X to configure the relay's LAN address. Muse must be able to read and write the shared exchange folder. This flow does not use Bluetooth pairing, an SDK token, or a linked-account status."
       :"This build cannot connect those accounts or send them requests. Your existing Local lab projects remain available without an account.",132,724,27,1610,39,muted,4);
+  } else if (v.screen == Screen::update) {
+    // Large centred panel — distinct from the working screen
+    const gfx::Color accent = v.busy ? gfx::Color::rgb(0xffe08a) : mint;
+    card(d, {96, 350, 1728, 560});
+    d.rounded_rect({96, 350, 1728, 6}, 3, accent);
+    label(d, f.semibold, "MUSESTATION UPDATER", 140, 415, 22, accent);
+    ui::paragraph(d, f.regular,
+      v.busy
+        ? "Downloading the new build and preparing to swap the eboot. Do not close MuseStation."
+        : "Your relay is hosting the latest build. Pressing X will download it, release the\n"
+          "current eboot lock via ShadowMount, write the new binary, and close the app.\n"
+          "Relaunch MuseStation from the PS5 home screen to run the updated version.",
+      140, 470, 29, 1630, 44, white, 4);
+    if (v.busy) {
+      // Animated download indicator
+      for (int i = 0; i < 59; ++i) {
+        float a = 8 + 14 * std::fabs(std::sin(float(i) * .41f + v.seconds));
+        d.rounded_rect({140 + float(i) * 17, 820 - a / 2, 5, a}, 2.5f,
+                       accent.with_alpha(i % 4 ? .55f : .9f));
+      }
+    } else {
+      pill(d, f.semibold, "X   Download and install update", 140, 820, 600);
+    }
+    label(d, f.regular, v.status, 140, 890, 24, muted);
+    if (!v.error.empty()) label(d, f.regular, v.error, 140, 930, 24, gfx::Color::rgb(0xffb388));
   } else if (v.screen == Screen::plan) {
     card(d, {96, 340, 1180, 527});
     label(d, f.semibold, v.local ? "LOCAL PLAN  /  YOUR APPROVAL" : "MUSE-REVIEWED PLAN", 132, 395, 20, mint);
