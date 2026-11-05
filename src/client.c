@@ -540,10 +540,16 @@ static int folder_path_ok(const char *p){
     }
     return 1;
 }
+/* In the PS5 title sandbox, mkdir() on an existing mount point such as /data
+ * fails with EPERM rather than EEXIST, so test for existing directories first. */
+static int ensure_dir(const char *path){
+    struct stat st;if(!stat(path,&st))return S_ISDIR(st.st_mode)?0:-1;
+    return mkdir(path,0777)&&errno!=EEXIST?-1:0;
+}
 static int mkdirs(const char *path){
     char buf[1024];if(snprintf(buf,sizeof buf,"%s",path)>=(int)sizeof buf)return -1;
-    for(char *p=buf+1;*p;p++)if(*p=='/'){*p=0;if(mkdir(buf,0777)&&errno!=EEXIST)return -1;*p='/';}
-    return mkdir(buf,0777)&&errno!=EEXIST?-1:0;
+    for(char *p=buf+1;*p;p++)if(*p=='/'){*p=0;if(ensure_dir(buf))return -1;*p='/';}
+    return ensure_dir(buf);
 }
 static int remove_tree(const char *path,int depth){
     struct stat st;if(lstat(path,&st))return errno==ENOENT?0:-1;
@@ -579,7 +585,9 @@ static int muse_client_install_folder_inner(struct muse_client *c,const char *jo
     if(strcmp(hex,m->folder_sha256)){free(list);return fail(c,"Folder file list does not match the verified build manifest");}
     char dest[512],stage[600],old[600];
     snprintf(dest,sizeof dest,"%s/%s",root,m->title_id);snprintf(stage,sizeof stage,"%s.muse-part",dest);snprintf(old,sizeof old,"%s.muse-old",dest);
-    if(mkdirs(root)||remove_tree(stage,0)||mkdir(stage,0777)){free(list);return fail(c,"Cannot prepare the homebrew folder on this console");}
+    const char *step=mkdirs(root)?"create":remove_tree(stage,0)?"clear":mkdir(stage,0777)?"stage":NULL;
+    if(step){int e=errno;free(list);snprintf(c->error,sizeof c->error,"Cannot prepare the homebrew folder on this console (%s %s: %s)",
+        step,!strcmp(step,"create")?root:stage,strerror(e));return -1;}
     uint64_t done=0,files=0;int rc=0;char *cursor=(char *)list,*end=(char *)list+list_len;
     while(!rc&&cursor<end){
         char *nl=memchr(cursor,'\n',(size_t)(end-cursor));if(!nl){rc=fail(c,"Folder file list is truncated");break;}*nl=0;
