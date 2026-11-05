@@ -54,8 +54,8 @@ int muse_client_dispatch(struct muse_client *c, const char *elf_path);
 int muse_client_logs(struct muse_client *c, const char *jsonl_path);
 /* Folder install: download every file of the build's folder app (hash-checked against
  * the listing bound to the manifest), stage it under <root>/<TITLE>.muse-part, swap it
- * into <root>/<TITLE>, then ask ShadowMountPlus to scan and wait until it reports the
- * title installed. progress(context, done_bytes, total_bytes, stage) may be NULL. */
+ * into <root>/<TITLE>, register it with ShadowMountPlus (manual source, scan fallback)
+ * and wait until it reports the title installed. progress(context, done_bytes, total_bytes, stage) may be NULL. */
 typedef void (*muse_install_progress)(void *context, uint64_t done, uint64_t total, const char *stage);
 int muse_client_install_folder(struct muse_client *c, const char *job_id, const struct muse_build_status *manifest,
                                const char *root, muse_install_progress progress, void *context);

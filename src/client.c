@@ -616,11 +616,18 @@ static int muse_client_install_folder_inner(struct muse_client *c,const char *jo
         (void)remove_tree(stage,0);return fail(c,"Cannot move the app into the homebrew folder");
     }
     if(existed)(void)remove_tree(old,0);
-    /* ShadowMountPlus registers the folder; it waits for a stable source by itself. */
+    /* The title sandbox may not touch ShadowMountPlus's own /data/homebrew, so the app
+     * lives in MuseStation's folder and is registered as a manual source (verified on
+     * FW 12.40: "installed status recorded ... from /data/musestation/apps/<TITLE>"). */
     if(progress)progress(context,done,m->folder_size,"Asking ShadowMount+ to install it");
     unsigned char *reply=NULL;size_t reply_len=0;
-    if(http_request(c,c->config.shadowmount_url,"POST","/api/v1/scan","application/json","{\"reset_attempts\":true}",23,65536,&reply,&reply_len,0,0))
-        return fail(c,"The app was copied, but ShadowMount+ did not accept the scan request");
+    char add[700];int add_len=snprintf(add,sizeof add,"{\"path\":\"%s\"}",dest);
+    if(add_len<0||add_len>=(int)sizeof add)return fail(c,"Install path is too long");
+    if(http_request(c,c->config.shadowmount_url,"POST","/api/v1/manual/add","application/json",add,(size_t)add_len,65536,&reply,&reply_len,0,0)){
+        free(reply);reply=NULL;
+        if(http_request(c,c->config.shadowmount_url,"POST","/api/v1/scan","application/json","{\"reset_attempts\":true}",23,65536,&reply,&reply_len,0,0))
+            return fail(c,"The app was copied, but ShadowMount+ did not accept it (manual source and scan both failed)");
+    }
     free(reply);
     char body[64];int body_len=snprintf(body,sizeof body,"{\"title_id\":\"%s\"}",m->title_id);
     for(int attempt=0;attempt<60;attempt++){

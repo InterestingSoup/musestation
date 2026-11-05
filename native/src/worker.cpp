@@ -292,6 +292,8 @@ void installed_marker(const char *artifact_dir, const std::string &job) {
   FILE *f = std::fopen((dir + "/" + job).c_str(), "wb");
   if (f) std::fclose(f);
 }
+// Muse-built apps live here (the sandbox cannot write ShadowMountPlus's /data/homebrew).
+const char *const kAppsRoot = "/data/musestation/apps";
 void install_debug(const char *format, ...) {
   FILE *f = std::fopen("/data/muse-install-debug.log", "a");
   if (!f) return;
@@ -1027,7 +1029,7 @@ void Worker::loop() {
         if (!r.rc) {
           install_done.store(0);
           install_total.store(st.folder_size);
-          r.rc = muse_client_install_folder(&client, w.id.c_str(), &st, "/data/homebrew",
+          r.rc = muse_client_install_folder(&client, w.id.c_str(), &st, kAppsRoot,
                                             &Worker::folder_progress, this);
           // Keep the reason before logging: the journal flush reuses the client and clears it.
           if (r.rc) r.error = client.error[0] ? client.error : "folder install failed without a reason";
@@ -1054,7 +1056,7 @@ void Worker::loop() {
           // Folder app: download, verify and hand it to ShadowMountPlus in one step.
           install_done.store(0);
           install_total.store(w.manifest.folder_size);
-          r.rc = muse_client_install_folder(&client, w.id.c_str(), &w.manifest, "/data/homebrew",
+          r.rc = muse_client_install_folder(&client, w.id.c_str(), &w.manifest, kAppsRoot,
                                             &Worker::folder_progress, this);
           if (r.rc) r.error = client.error[0] ? client.error : "folder install failed without a reason";
           install_debug("folder_install %s %s: rc=%d error=%s", w.id.c_str(), w.manifest.title_id, r.rc, r.error.c_str());
@@ -1062,7 +1064,7 @@ void Worker::loop() {
                          r.rc ? r.error.c_str() : w.manifest.title_id);
           if (!r.rc) {
             r.install.installed = r.install.completed = true;
-            r.path = std::string("/data/homebrew/") + w.manifest.title_id;
+            r.path = std::string(kAppsRoot) + "/" + w.manifest.title_id;
             installed_marker(client.config.artifact_dir, w.id);
           }
           break;
