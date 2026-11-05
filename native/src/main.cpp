@@ -220,7 +220,7 @@ int main() {
   float build_started = 0;
   bool worker_started = false, exit_pending = false, quit_after_flush = false,
        session_flush = false, need_init = false;
-  double poll_at = 0, install_poll_at = 0, log_retry_at = 30, quit_after_install = 0;
+  double poll_at = 0, install_poll_at = 0, log_retry_at = 30, quit_after_install = 0, force_quit_at = 0;
   double plan_poll_at = 0, plan_wait_started = 0;
   bool plan_active = false, plan_recovery = false;
   std::string waiting_plan;
@@ -602,16 +602,16 @@ int main() {
             if (res.rc) fail("Install failed: " + res.error + ". Press R1 to retry from Creations.");
             else {
               view.screen = muse::Screen::home;
-              view.detail = std::string("Installed ") + res.work.manifest.folder_name + "! Closing MuseStation in 5 seconds so you can launch it cleanly.";
+              view.detail = std::string("Installed ") + res.work.manifest.folder_name + "! Closing MuseStation in 3 seconds so you can launch it cleanly.";
               view.status = "Press Circle now to close immediately.";
-              quit_after_install = view.seconds + 5.0;
+              force_quit_at = view.seconds + 3.0;
               pad.rumble(.3f, .18f);
             }
           } else {
             if (res.rc) view.status = "Install failed: " + res.error;
             else {
-              view.status = std::string("Installed ") + res.work.manifest.folder_name + "! Closing MuseStation in 5 seconds so you can launch it cleanly.";
-              quit_after_install = view.seconds + 5.0;
+              view.status = std::string("Installed ") + res.work.manifest.folder_name + "! Closing MuseStation in 3 seconds so you can launch it cleanly.";
+              force_quit_at = view.seconds + 3.0;
               pad.rumble(.3f, .18f);
             }
             creations_refresh_at = view.seconds;
@@ -827,9 +827,9 @@ int main() {
                 view.progress = -1;
                 view.screen = muse::Screen::home;
                 view.detail = std::string("Installed ") + res.work.manifest.folder_name +
-                              "! Closing MuseStation in 5 seconds so you can launch it cleanly.";
+                              "! Closing MuseStation in 3 seconds so you can launch it cleanly.";
                 view.status = "Press Circle now to close immediately.";
-                quit_after_install = view.seconds + 5.0;
+                force_quit_at = view.seconds + 3.0;
                 muse_reset(&gate);
                 pad.rumble(.3f, .18f);
                 break;
@@ -930,9 +930,13 @@ int main() {
       send(muse::Task::init);
       need_init = false;
     }
-    if (quit_after_install > 0 && view.seconds >= quit_after_install) {
-      quit_after_install = 0;
-      exit_pending = true;
+    if (force_quit_at > 0 && view.seconds >= force_quit_at) {
+      force_quit_at = 0;
+      if (phone) muse_phone_stop(phone);
+      audio_out.stop();
+      pad.close();
+      display.close();
+      sys::quit();
     }
     if (cancel_pending && !view.busy) {
       if (worker.submit(cancelled_plan)) cancel_pending=false;
