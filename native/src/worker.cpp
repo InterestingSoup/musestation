@@ -1296,6 +1296,8 @@ void Worker::loop() {
         }
         // 5. Copy staged eboot to the live path.
         const char *live = "/data/homebrew/PPSA99576/eboot.bin";
+        // ShadowMount uninstall may have removed the directory; recreate it.
+        mkdir("/data/homebrew/PPSA99576", 0755);
         FILE *src = fopen(staging, "rb");
         FILE *dst = fopen(live, "wb");
         bool copy_ok = false;
