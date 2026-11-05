@@ -282,6 +282,13 @@ done:
   return rc;
 }
 } // namespace
+// Remember which builds this console installed, so reopening never installs one twice.
+void installed_marker(const char *artifact_dir, const std::string &job) {
+  const std::string dir = std::string(artifact_dir) + "/installed";
+  mkdir(dir.c_str(), 0700);
+  FILE *f = std::fopen((dir + "/" + job).c_str(), "wb");
+  if (f) std::fclose(f);
+}
 void Worker::folder_progress(void *context, uint64_t done, uint64_t total, const char *stage) {
   auto *self = static_cast<Worker *>(context);
   self->install_done.store(done);
@@ -954,7 +961,10 @@ void Worker::loop() {
           muse_log_event(&journal, r.rc ? "error" : "info", "creation_install",
                          r.rc ? client.error : st.title_id);
           r.work.manifest = st;
-          if (!r.rc) r.install.installed = r.install.completed = true;
+          if (!r.rc) {
+            r.install.installed = r.install.completed = true;
+            installed_marker(client.config.artifact_dir, w.id);
+          }
         }
         if (r.rc && r.error.empty()) r.error = client.error;
         break;
@@ -977,6 +987,7 @@ void Worker::loop() {
           if (!r.rc) {
             r.install.installed = r.install.completed = true;
             r.path = std::string("/data/homebrew/") + w.manifest.title_id;
+            installed_marker(client.config.artifact_dir, w.id);
           }
           break;
         }

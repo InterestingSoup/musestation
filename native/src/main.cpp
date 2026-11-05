@@ -562,6 +562,18 @@ int main() {
                 view.status = c.detail;
                 build_started = view.seconds;
                 poll_at = view.seconds;
+              } else if (c.state == "done" && !c.job_id.empty() && std::time(nullptr) - c.created < 24 * 3600 &&
+                         access((std::string(cfg.artifact_dir) + "/installed/" + c.job_id).c_str(), F_OK)) {
+                // Finished while MuseStation was closed: install it now, live.
+                muse::Work w; w.type = muse::Task::creation_install; w.generation = gate.generation; w.id = c.job_id;
+                if (worker.submit(w)) {
+                  install_active = folder_install = true; view.progress = 0;
+                  view.screen = muse::Screen::working;
+                  view.detail = label + " finished building while you were away. Installing it now.";
+                  resumed_build = true;
+                  muse_resume_build(&gate, c.job_id.c_str());
+                  muse_build_done(&gate, gate.generation, gate.job_id);
+                }
               } else if (c.state == "planning") {
                 muse_plan p{};
                 snprintf(p.id, sizeof p.id, "%s", c.plan_id.c_str());

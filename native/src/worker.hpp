@@ -75,6 +75,7 @@ struct Result {
   bool coding_model_unavailable = false;
   bool needs_init = false, configuration_applied = false, plan_retryable = false;
 };
+void installed_marker(const char *artifact_dir, const std::string &job);
 class Worker {
 public:
   bool start(const muse_config &);
