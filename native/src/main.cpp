@@ -614,6 +614,14 @@ int main() {
             }
             creations_refresh_at = view.seconds;
           }
+        } else if (res.work.type == muse::Task::self_update) {
+          if (res.rc) {
+            view.status = "Update failed: " + res.error;
+          } else {
+            view.status = "Update installed. MuseStation will close — relaunch from your home screen.";
+            pad.rumble(.3f, .18f);
+            exit_pending = true;
+          }
         } else if (res.work.type == muse::Task::configure) {
           if (res.configuration_applied) {
             cfg=res.work.configuration; configured=true; sync_mode();
@@ -1029,6 +1037,11 @@ int main() {
         }
       }
       if (input.is_pressed(Action::back) && configured) view.screen=muse::Screen::home;
+      if (input.is_pressed(Action::east) && !view.busy) {
+        view.screen=muse::Screen::update;
+        view.status="Press X to download and install the latest MuseStation update from your relay.";
+        view.error.clear();
+      }
     } else if (view.screen==muse::Screen::models || view.screen==muse::Screen::model_url) {
       if (view.downloading_model) {
         const uint64_t total=worker.model_transfer.total.load(),received=worker.model_transfer.received.load();
@@ -1071,6 +1084,14 @@ int main() {
         setup();
       }
       if (input.is_pressed(Action::back)) modes();
+    } else if (view.screen==muse::Screen::update) {
+      if (!view.busy && input.is_pressed(Action::confirm)) {
+        muse::Work w; w.type=muse::Task::self_update; w.generation=gate.generation;
+        if (worker.submit(w)) {
+          view.status = "Downloading update from relay...";
+        }
+      }
+      if (!view.busy && input.is_pressed(Action::back)) modes();
     } else if (view.screen==muse::Screen::creations) {
       const int count = int(creations.size());
       if (input.nav==Direction::up) view.selection=std::max(0,view.selection-1);

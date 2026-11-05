@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 namespace muse {
-enum class Screen { home, plan, planning, working, error, setup, diagnostics, modes, request, library, project, connections, models, model_url, creations };
+enum class Screen { home, plan, planning, working, error, setup, diagnostics, modes, request, library, project, connections, models, model_url, creations, update };
 struct ProjectRow { std::string title, state, detail; };
 struct View {
   Screen screen = Screen::home;

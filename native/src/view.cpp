@@ -89,6 +89,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
         : v.screen == Screen::library     ? "YOUR LOCAL PROJECTS"
         : v.screen == Screen::creations   ? "YOUR CREATIONS WITH MUSE"
         : v.screen == Screen::connections ? "CONNECT A DEVELOPMENT PARTNER"
+        : v.screen == Screen::update      ? "UPDATE MUSESTATION"
         : v.screen == Screen::plan        ? "YOUR BUILD PLAN"
         : v.screen == Screen::planning    ? "YOUR REQUEST IS WITH MUSE"
         : v.screen == Screen::diagnostics ? "CONSOLE HEALTH"
@@ -101,6 +102,7 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
       : v.screen == Screen::modes       ? "Your idea. Muse builds it."
       : v.screen == Screen::library     ? "Your ideas, kept here."
       : v.screen == Screen::creations   ? "Everything you've made."
+      : v.screen == Screen::update      ? "Install the latest build."
       : v.screen == Screen::connections ? v.connection_muse ? "Connect with Muse." : "More ways to create."
       : v.screen == Screen::project     ? v.job_label
       : v.screen == Screen::plan        ? "A plan before we play."
@@ -318,10 +320,11 @@ void render(gfx::Renderer &r, const ui::Fonts &f, const View &v, int width,
         v.screen == Screen::model_url ? "X  Type     Square  Delete     R1  Download     Circle  Back"
         : setup ? (v.secret_edit ? "X  Type     Square  Delete     R1  Continue     Circle  Back" : "X  Type     Square  Delete     Triangle  Caps     R1  Continue     Circle  Back")
         : v.screen == Screen::models ? v.downloading_model ? "Circle  Cancel download" : v.model_ready ? "X  Download recommended     Square  Custom URL     R1  Continue     Circle  Modes" : "X  Download recommended     Square  Custom URL     Circle  Modes"
-        : v.screen == Screen::modes ? v.mode_choice==1 ? "Left / Right  Mode     Up / Down  Budget     X  Select     Circle  Back" : "Left / Right  Mode     X  Select     Circle  Back"
+        : v.screen == Screen::modes ? v.mode_choice==1 ? "Left / Right  Mode     Up / Down  Budget     X  Select     Triangle  Update     Circle  Back" : "Left / Right  Mode     X  Select     Triangle  Update     Circle  Back"
         : v.screen == Screen::library ? "D-pad  Choose     X  Open project     L1  Create     Circle  Back"
         : v.screen == Screen::creations ? "D-pad  Choose     X  Install / Open plan     Square  Change it     L1  Create     Circle  Back"
         : v.screen == Screen::connections ? v.connection_muse ? "X / Square  Configure relay     Circle  Back" : "Circle  Back     Provider connection unavailable"
+        : v.screen == Screen::update ? (v.busy ? "Updating..." : "X  Download and install update     Circle  Back")
         : v.screen == Screen::project ? "X  Play / Resume   |   Square  Pause / Refine   |   Triangle  Library   |   Circle  Back"
         : v.screen == Screen::plan ? "X  Approve     Square  Add detail     "
                                      "Circle  Cancel     Hold R2  Speak"

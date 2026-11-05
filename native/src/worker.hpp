@@ -48,6 +48,7 @@ enum class Task {
   notices_poll,
   notice_seen,
   notice_reply,
+  self_update,
   stop
 };
 struct Work {
