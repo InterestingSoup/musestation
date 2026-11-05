@@ -1013,6 +1013,8 @@ void Worker::loop() {
       }
       case Task::creation_install: {
         // Install a finished creation from the Creations tab (any session, any time).
+        // The relay FTPs files directly to /data/homebrew/<TITLE>/ on the PS5 and
+        // triggers a ShadowMount scan — no in-title file writes, no game-switch risk.
         muse_build_status st{};
         r.rc = muse_client_status(&client, w.id.c_str(), &st);
         if (r.rc) {
@@ -1021,18 +1023,20 @@ void Worker::loop() {
           install_debug("creation_install %s status: %s", w.id.c_str(), r.error.c_str());
           break;
         }
-        if (!r.rc && (std::strcmp(st.state, "done") || !st.folder_sha256[0])) {
+        if (std::strcmp(st.state, "done") || !st.folder_sha256[0]) {
           r.rc = -1;
           r.error = "This creation has no installable folder app yet.";
           break;
         }
-        if (!r.rc) {
-          install_done.store(0);
-          install_total.store(st.folder_size);
-          r.rc = muse_client_install_folder(&client, w.id.c_str(), &st, kAppsRoot,
-                                            &Worker::folder_progress, this);
-          // Keep the reason before logging: the journal flush reuses the client and clears it.
-          if (r.rc) r.error = client.error[0] ? client.error : "folder install failed without a reason";
+        {
+          unsigned char *resp = nullptr; size_t resp_len = 0;
+          std::string ipath = std::string("/build/") + w.id + "/relay-install";
+          r.rc = muse_client_http(&client, client.config.server_url, "POST",
+                                  ipath.c_str(), "application/json", "{}", 2,
+                                  4096, &resp, &resp_len);
+          free(resp);
+          if (!r.rc && client.http_status != 200) r.rc = -1;
+          if (r.rc) r.error = client.error[0] ? client.error : "Relay install failed";
           install_debug("creation_install %s %s: rc=%d error=%s", w.id.c_str(), st.title_id, r.rc, r.error.c_str());
           muse_log_event(&journal, r.rc ? "error" : "info", "creation_install",
                          r.rc ? r.error.c_str() : st.title_id);
@@ -1042,7 +1046,6 @@ void Worker::loop() {
             installed_marker(client.config.artifact_dir, w.id);
           }
         }
-        if (r.rc && r.error.empty()) r.error = client.error;
         break;
       }
       case Task::download: {
@@ -1053,18 +1056,21 @@ void Worker::loop() {
         }
         muse_log_event(&journal, "info", "download", w.id.c_str());
         if (w.manifest.folder_sha256[0]) {
-          // Folder app: download, verify and hand it to ShadowMountPlus in one step.
-          install_done.store(0);
-          install_total.store(w.manifest.folder_size);
-          r.rc = muse_client_install_folder(&client, w.id.c_str(), &w.manifest, kAppsRoot,
-                                            &Worker::folder_progress, this);
-          if (r.rc) r.error = client.error[0] ? client.error : "folder install failed without a reason";
-          install_debug("folder_install %s %s: rc=%d error=%s", w.id.c_str(), w.manifest.title_id, r.rc, r.error.c_str());
-          muse_log_event(&journal, r.rc ? "error" : "info", "folder_install",
+          // Relay FTPs files to /data/homebrew/<TITLE>/ and triggers ShadowMount scan.
+          unsigned char *resp = nullptr; size_t resp_len = 0;
+          std::string ipath = std::string("/build/") + w.id + "/relay-install";
+          r.rc = muse_client_http(&client, client.config.server_url, "POST",
+                                  ipath.c_str(), "application/json", "{}", 2,
+                                  4096, &resp, &resp_len);
+          free(resp);
+          if (!r.rc && client.http_status != 200) r.rc = -1;
+          if (r.rc) r.error = client.error[0] ? client.error : "Relay install failed";
+          install_debug("relay_install %s %s: rc=%d error=%s", w.id.c_str(), w.manifest.title_id, r.rc, r.error.c_str());
+          muse_log_event(&journal, r.rc ? "error" : "info", "relay_install",
                          r.rc ? r.error.c_str() : w.manifest.title_id);
           if (!r.rc) {
             r.install.installed = r.install.completed = true;
-            r.path = std::string(kAppsRoot) + "/" + w.manifest.title_id;
+            r.path = std::string("/data/homebrew/") + w.manifest.title_id;
             installed_marker(client.config.artifact_dir, w.id);
           }
           break;

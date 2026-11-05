@@ -602,16 +602,14 @@ int main() {
             if (res.rc) fail("Install failed: " + res.error + ". Press R1 to retry from Creations.");
             else {
               view.screen = muse::Screen::home;
-              view.detail = std::string("Installed ") + res.work.manifest.folder_name + "! Closing MuseStation in 3 seconds so you can launch it cleanly.";
-              view.status = "Press Circle now to close immediately.";
-              force_quit_at = view.seconds + 3.0;
+              view.detail = std::string("Installed ") + res.work.manifest.folder_name + "! Press PlayStation to go to your home screen and launch it.";
+              view.status = "App is ready on your home screen.";
               pad.rumble(.3f, .18f);
             }
           } else {
             if (res.rc) view.status = "Install failed: " + res.error;
             else {
-              view.status = std::string("Installed ") + res.work.manifest.folder_name + "! Closing MuseStation in 3 seconds so you can launch it cleanly.";
-              force_quit_at = view.seconds + 3.0;
+              view.status = std::string("Installed ") + res.work.manifest.folder_name + "! Press PlayStation to go to your home screen and launch it.";
               pad.rumble(.3f, .18f);
             }
             creations_refresh_at = view.seconds;
@@ -827,9 +825,8 @@ int main() {
                 view.progress = -1;
                 view.screen = muse::Screen::home;
                 view.detail = std::string("Installed ") + res.work.manifest.folder_name +
-                              "! Closing MuseStation in 3 seconds so you can launch it cleanly.";
-                view.status = "Press Circle now to close immediately.";
-                force_quit_at = view.seconds + 3.0;
+                              "! Press PlayStation to go to your home screen and launch it.";
+                view.status = "App is ready on your home screen.";
                 muse_reset(&gate);
                 pad.rumble(.3f, .18f);
                 break;
