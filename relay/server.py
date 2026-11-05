@@ -21,7 +21,7 @@ import time
 from urllib.parse import parse_qs, urlsplit
 
 from .exchange import Exchange
-from .store import MAX_JSON, MAX_LOG, RelayError, SafeDir, Store, canonical, strict_json
+from .store import fields, MAX_JSON, MAX_LOG, RelayError, SafeDir, Store, canonical, strict_json
 
 
 class RelayHTTPServer(ThreadingHTTPServer):
@@ -167,6 +167,8 @@ class Handler(BaseHTTPRequestHandler):
                     raise RelayError(400, "Unexpected query parameters")
                 if method == "POST" and path.path == "/provider/plans":
                     return self.reply(200, app.exchange.ingest_plan(self.json_body(32768)))
+                if method == "POST" and path.path == "/provider/notices":
+                    return self.reply(200, app.store.ingest_notice(self.json_body(8192)))
                 if method == "POST" and path.path == "/provider/sources":
                     return self.reply(200, app.exchange.ingest_source(self.json_body()))
                 match = re.fullmatch(r"/provider/(logs|diagnostics)/([lj][0-9a-f]{32})", path.path)
@@ -275,6 +277,24 @@ document.getElementById('f').onsubmit=async e=>{{
                 return self.reply(status, value)
             if match and method == "POST" and match[2]:
                 return self.reply(200, app.store.approve(match[1], self.json_body(64 * 1024)))
+            if method == "GET" and path.path == "/notices":
+                raw = app.store.notices()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(raw)
+                self.close_connection = True
+                return
+            match = re.fullmatch(r"/notices/(n[0-9a-f]{32})/(seen|reply)", path.path)
+            if match and method == "POST":
+                if match[2] == "seen":
+                    return self.reply(200, app.store.notice_seen(match[1]))
+                value = self.json_body(8192)
+                fields(value, ("text",))
+                return self.reply(200, app.store.notice_seen(match[1], value["text"]))
             if method == "GET" and path.path == "/creations":
                 raw = app.store.creations()
                 self.send_response(200)

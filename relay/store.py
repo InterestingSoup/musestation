@@ -330,6 +330,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS diagnostics (
                     id TEXT PRIMARY KEY, sha TEXT NOT NULL, bytes INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS notices (
+                    id TEXT PRIMARY KEY, target TEXT NOT NULL, level TEXT NOT NULL, origin TEXT NOT NULL,
+                    text TEXT NOT NULL, created REAL NOT NULL, seen REAL, reply TEXT, replied REAL);
             """)
         # The migration is serialized independently of CREATE IF NOT EXISTS so
         # concurrent API/worker startup cannot both add the same legacy column.
@@ -735,6 +738,13 @@ class Store:
                               else "Approval sent. " + waiting)
                 elif not picked:
                     detail = row["detail"] + ". " + waiting
+                else:
+                    seen = db.execute("SELECT created FROM events WHERE type='result' AND payload LIKE ? ORDER BY sequence DESC LIMIT 1",
+                                      (f'%"job_id":"{id}"%',)).fetchone()
+                    idle = int(time.time() - seen[0]) // 60 if seen else 0
+                    if idle >= 10:
+                        detail = (f"Muse read the build failure {idle} min ago but has not sent a fix. "
+                                  "Ask Muse to check this job")
         if row["state"] == "done":
             return json.loads(row["manifest_json"])
         value = {"state": "error" if row["state"] == "error" else "building", "detail": detail}
@@ -829,6 +839,85 @@ class Store:
             return {"id": row["id"], "revision": row["revision"],
                     "source_manifest": json.loads(row["source_json"]), "identity": json.loads(row["identity_json"])}
 
+    def requeue_infrastructure(self, id, detail):
+        """Build host problem: keep the source and retry later without using an attempt."""
+        identifier(id, "j")
+        detail = text(detail, 300, "infrastructure failure")
+        with self.db(True) as db:
+            db.execute("UPDATE jobs SET state='queued',detail=? WHERE id=? AND state='building'",
+                       (f"Build server problem ({detail}). Retrying automatically every minute", id))
+            recent = db.execute("SELECT 1 FROM notices WHERE target=? AND origin='relay' AND created>?",
+                                (id, time.time() - 3600)).fetchone()
+            if not recent:
+                self.add_notice(id, "warning", f"The build server on opti3 has a problem ({detail}). Your approved "
+                                "code is safe and will build automatically once it is fixed; nothing for you or "
+                                "Muse to redo.", db=db)
+        work = self.path / "work"
+        with contextlib.suppress(FileNotFoundError):
+            os.rename(work / id, work / f"{id}.infra-{int(time.time())}")
+
+    NOTICE_LEVELS = ("info", "warning", "question")
+
+    def add_notice(self, target, level, text_value, origin="relay", db=None):
+        """A message for the console about a request (p...) or job (j...)."""
+        if not isinstance(target, str) or not re.fullmatch(r"[pj][0-9a-f]{32}", target):
+            raise RelayError(400, "Notice target must be a request or job id")
+        if level not in self.NOTICE_LEVELS:
+            raise RelayError(400, "Notice level must be info, warning or question")
+        body = text(text_value, 600, "notice text")
+        id = "n" + uuid.uuid4().hex
+        def insert(conn):
+            table = "requests" if target[0] == "p" else "jobs"
+            self.row(conn, table, target)
+            conn.execute("INSERT INTO notices(id,target,level,origin,text,created) VALUES(?,?,?,?,?,?)",
+                         (id, target, level, origin, body, time.time()))
+        if db is not None:
+            insert(db)
+        else:
+            with self.db(True) as conn:
+                insert(conn)
+        return {"accepted": True, "notice_id": id}
+
+    def ingest_notice(self, value):
+        fields(value, ("schema", "type", "target", "level", "text"))
+        if value["schema"] != 1 or value["type"] != "notice":
+            raise RelayError(400, "Expected schema-1 notice")
+        return self.add_notice(value["target"], value["level"], value["text"], "muse")
+
+    def notices(self):
+        """Unseen notices, one per line: id, level, origin, target, name, created, text."""
+        lines = []
+        with self.db() as db:
+            for n in db.execute("SELECT * FROM notices WHERE seen IS NULL ORDER BY created LIMIT 20"):
+                name = ""
+                if n["target"][0] == "j":
+                    job = db.execute("SELECT identity_json FROM jobs WHERE id=?", (n["target"],)).fetchone()
+                    name = json.loads(job[0]).get("name", "") if job else ""
+                else:
+                    req = db.execute("SELECT * FROM requests WHERE id=?", (n["target"],)).fetchone()
+                    name = ((req["name"] if req is not None and "name" in req.keys() else None) or
+                            (req["transcript"][:40] if req is not None else ""))
+                clean = lambda v, k: " ".join(str(v or "").split())[:k]
+                lines.append("\t".join([n["id"], n["level"], n["origin"], n["target"], clean(name, 64),
+                                        str(int(n["created"])), clean(n["text"], 600)]))
+        return ("\n".join(lines) + ("\n" if lines else "")).encode()
+
+    def notice_seen(self, id, reply=None):
+        identifier(id, "n")
+        with self.db(True) as db:
+            row = db.execute("SELECT * FROM notices WHERE id=?", (id,)).fetchone()
+            if row is None:
+                raise RelayError(404, "Unknown notice")
+            if reply is not None:
+                body = text(reply, 2000, "reply")
+                db.execute("UPDATE notices SET seen=coalesce(seen,?),reply=?,replied=? WHERE id=?",
+                           (time.time(), body, time.time(), id))
+                self.event(db, "notice_reply", {"schema": 1, "type": "notice_reply", "notice_id": id,
+                                               "target": row["target"], "notice": row["text"], "reply": body})
+            else:
+                db.execute("UPDATE notices SET seen=coalesce(seen,?) WHERE id=?", (time.time(), id))
+        return {"accepted": True}
+
     MAX_ATTEMPTS = 3
 
     def fail_job(self, id, detail, retryable=True):
@@ -851,6 +940,9 @@ class Store:
                            (status, attempt + 1, id))
             else:
                 db.execute("UPDATE jobs SET state='error',detail=? WHERE id=?", (detail, id))
+                identity = json.loads(row["identity_json"])
+                self.add_notice(id, "warning", f"{identity.get('name', 'Your app')} could not be built: {detail[:300]}. "
+                                "Open Creations and press Square to ask Muse for a changed version.", db=db)
             self.event(db, "result", {"schema": 1, "type": "result", "job_id": id,
                 "approved_revision": row["revision"], "state": "error", "detail": detail,
                 "attempts": attempt, "max_attempts": self.MAX_ATTEMPTS, "fix_allowed": fixable,

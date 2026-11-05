@@ -33,6 +33,11 @@ class BuildError(RuntimeError):
         self.log_paths = list(log_paths or [])
 
 
+class InfrastructureError(BuildError):
+    """The build host is not ready (missing image, broken kit): not the source's fault.
+    The job is re-queued without using one of Muse's fix attempts."""
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open('rb') as stream:
@@ -143,15 +148,15 @@ class Builder:
 
     def _image(self, image):
         if not isinstance(image, str) or not image or image.startswith('-'):
-            raise BuildError('invalid trusted Docker image configuration')
+            raise InfrastructureError('invalid trusted Docker image configuration')
         try:
             proc = subprocess.run([self.docker, 'image', 'inspect', '--format', '{{.Id}}', image],
                                   capture_output=True, timeout=20, check=True)
         except (OSError, subprocess.SubprocessError) as exc:
-            raise BuildError('configured build image is unavailable locally; worker never pulls images') from exc
+            raise InfrastructureError('configured build image is unavailable locally; worker never pulls images') from exc
         result = proc.stdout.decode('ascii', errors='replace').strip()
         if not re.fullmatch(r'sha256:[0-9a-f]{64}', result):
-            raise BuildError('Docker returned an invalid immutable image ID')
+            raise InfrastructureError('Docker returned an invalid immutable image ID')
         return result
 
     def recover_containers(self):
@@ -178,7 +183,7 @@ class Builder:
 
     def _kit(self):
         if self.kit_dir.is_symlink() or not self.kit_dir.is_dir():
-            raise BuildError('native kit must be a real directory')
+            raise InfrastructureError('native kit must be a real directory')
         files = checked_tree(self.kit_dir, 768 * 1024 * 1024, 20000)
         try:
             manifest = json.loads((self.kit_dir / 'kit.json').read_text())
@@ -194,7 +199,7 @@ class Builder:
             if (self.kit_dir / 'kit.json').stat().st_mode & 0o222:
                 raise ValueError()
         except (OSError, ValueError, TypeError, KeyError) as exc:
-            raise BuildError('native kit integrity verification failed') from exc
+            raise InfrastructureError('native kit integrity verification failed') from exc
         return sha256(self.kit_dir / 'kit.json')
 
     @staticmethod

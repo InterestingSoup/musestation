@@ -86,7 +86,15 @@ def run_one(store, builder):
     try:
         with SafeDir(output_dir):
             pass
-        result = builder.build(job_dir, job["source_manifest"], job["identity"], output_dir)
+        try:
+            result = builder.build(job_dir, job["source_manifest"], job["identity"], output_dir)
+        except Exception as error:
+            if type(error).__name__ == "InfrastructureError":
+                stop.set()
+                watcher.join()
+                store.requeue_infrastructure(id, getattr(error, "message", str(error)))
+                return "infrastructure"
+            raise
         stop.set()
         watcher.join()
         collect_diagnostics(store, id, [result[k] for k in ("compiler_log", "package_log") if result.get(k)])
@@ -176,8 +184,11 @@ def main():
     print(json.dumps({"event": "compiler_worker_started", "interrupted_jobs_failed": recovered}), flush=True)
     try:
         while not stop.is_set():
-            if not run_one(store, builder):
+            outcome = run_one(store, builder)
+            if not outcome:
                 stop.wait(2)
+            elif outcome == "infrastructure":
+                stop.wait(60)  # build host not ready; the job waits in the queue
     finally:
         stop.set()
         pulse.join(timeout=5)

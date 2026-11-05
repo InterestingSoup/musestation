@@ -115,6 +115,8 @@ class Exchange:
                             except RelayError as error:
                                 if error.status != 409:
                                     raise
+            elif kind == "notice_reply":
+                sub, name = "notice_replies", payload["notice_id"] + ".json"
             elif kind == "logs":
                 sub, name = "logs", payload["log_id"] + ".json"
                 with SafeDir(self.path / "outbound" / sub) as directory:

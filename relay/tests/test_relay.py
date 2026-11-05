@@ -789,6 +789,43 @@ class HTTPCase(StoreCase):
             db.execute("UPDATE meta SET value='0' WHERE key='provider_delivered'")
         self.assertIn("has not checked in for 15 min", self.store.status(job)["detail"])
 
+    def test_notices_from_muse_reach_console_and_replies_reach_muse(self):
+        status, raw, _ = self.call(self.console, "POST", "/voice", {"transcript": "a drum app", "draft": "", "source": "on_console"})
+        plan_id = json.loads(raw)["plan_id"]
+        notice = {"schema": 1, "type": "notice", "target": plan_id, "level": "question",
+                  "text": "Should the drums use the touchpad or the face buttons?"}
+        self.assertEqual(self.call(self.provider, "POST", "/provider/notices", notice)[0], 401)
+        status, raw, _ = self.call(self.provider, "POST", "/provider/notices", notice, auth=True)
+        self.assertEqual(status, 200)
+        status, raw, _ = self.call(self.console, "GET", "/notices")
+        lines = raw.decode().splitlines()
+        self.assertEqual(len(lines), 1)
+        nid, level, origin, target = lines[0].split("\t")[:4]
+        self.assertEqual((level, origin, target), ("question", "muse", plan_id))
+        status, _, _ = self.call(self.console, "POST", f"/notices/{nid}/reply", {"text": "Face buttons please"})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.call(self.console, "GET", "/notices")[1], b"")
+        events = self.store.outbox(0, 64)["events"]
+        reply = [e["payload"] for e in events if e["type"] == "notice_reply"]
+        self.assertEqual(reply[-1]["reply"], "Face buttons please")
+        self.assertTrue(self.exchange.tick())
+
+    def test_final_failure_creates_console_notice(self):
+        job, revision = self.approved()
+        class Failure(Exception):
+            pass
+        class Failing:
+            def build(inner, job_dir, source, identity, output_dir):
+                raise Failure("compile failed")
+        for attempt in (1, 2, 3):
+            fixed = self.source(job, revision)
+            fixed["files"] = {"main.cpp": f"// {attempt}\nint main(){{}}\n"}
+            self.store.ingest_source(fixed)
+            run_one(self.store, Failing())
+        lines = self.store.notices().decode().splitlines()
+        self.assertEqual(len(lines), 1)
+        self.assertIn("could not be built", lines[0])
+
     def test_private_token_permissions(self):
         path = self.base / "token"
         path.write_bytes(self.token + b"\n")
